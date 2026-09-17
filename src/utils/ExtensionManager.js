@@ -187,6 +187,12 @@ class ExtensionManagerService {
   async getStream(provider, link, type = 'movie', episodeNumber = 1, seasonNumber = 1) {
     const isTV = type === 'series' || type === 'tv';
     console.log(`[ExtensionManager] Native resolve direct stream: ${link}${isTV ? ` (Season ${seasonNumber}, Ep ${episodeNumber})` : ' (Movie)'}`);
+    const lower = link.toLowerCase();
+    if (lower.includes('.zip') || lower.includes('.rar') || lower.includes('.7z') || lower.includes('.tar')) {
+      console.warn(`[ExtensionManager] ⚠️ Ignoring archive/zip link: ${link}`);
+      return [];
+    }
+
     if (link.startsWith('http') && (
       link.includes('r2.cloudflarestorage.com') || 
       link.includes('.mkv') || 
@@ -197,7 +203,6 @@ class ExtensionManagerService {
       link.includes('googleusercontent.com') ||
       link.includes('video-downloads')
     )) {
-      const lower = link.toLowerCase();
       let detectedQ = '1080p';
       if (lower.includes('2160') || lower.includes('4k') || lower.includes('uhd')) {
         detectedQ = '4K';

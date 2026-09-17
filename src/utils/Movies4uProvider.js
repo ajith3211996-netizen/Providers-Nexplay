@@ -57,6 +57,11 @@ export function extractStreamUrls(code) {
 
 export function sortBridgesByFidelity(bridges) {
     if (!bridges || !Array.isArray(bridges)) return [];
+    const isZip = (b) => {
+        const text = `${b.quality || ''} ${b.label || ''} ${b.bridgeUrl || ''}`.toLowerCase();
+        return text.includes('.zip') || text.includes('.rar') || text.includes('.7z') || text.includes('.tar') || text.includes('zippack') || text.includes('zip_pack') || text.includes('zip pack') || text.includes('batch zip') || text.includes('season zip');
+    };
+    const validBridges = bridges.filter(b => !isZip(b));
     const scoreBridge = (b) => {
         const text = `${b.quality || ''} ${b.label || ''} ${b.bridgeUrl || ''}`.toLowerCase();
         let score = 0;
@@ -73,7 +78,7 @@ export function sortBridgesByFidelity(bridges) {
         if (sizeMatch) score += Math.min(100, Math.round(parseFloat(sizeMatch[1]) * 10));
         return score;
     };
-    return [...bridges].sort((a, b) => scoreBridge(b) - scoreBridge(a));
+    return [...validBridges].sort((a, b) => scoreBridge(b) - scoreBridge(a));
 }
 
 const DEFAULT_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
@@ -217,6 +222,14 @@ export class Movies4uClient {
         while ((sMatch = sectionRegex.exec(html)) !== null) {
             const label = sMatch[1].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
             const bridgeUrl = sMatch[2];
+            const lowerLabel = label.toLowerCase();
+            const lowerBridge = bridgeUrl.toLowerCase();
+            if (
+                lowerLabel.includes('.zip') || lowerLabel.includes('zip pack') || lowerLabel.includes('zippack') || lowerLabel.includes('batch') || lowerLabel.includes('season zip') || lowerLabel.includes('all in one zip') ||
+                lowerBridge.includes('.zip') || lowerBridge.includes('.rar') || lowerBridge.includes('zippack')
+            ) {
+                continue;
+            }
             const quality = this.detectQuality(label);
             const sizeMatch = label.match(/\[([\d.]+\s*(?:GB|MB)(?:\/[Ee])?)\]/i);
             const size = sizeMatch ? sizeMatch[1] : undefined;
@@ -573,6 +586,17 @@ export class Movies4uClient {
             const links = [...html.matchAll(/<a[^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi)];
             for (const [_, href, rawLabel] of links) {
                 const label = rawLabel.replace(/<[^>]+>/g, '').trim();
+                const lowerHref = href.toLowerCase();
+                const lowerLabel = label.toLowerCase();
+                
+                // Strictly ignore ZIP and compressed archive links
+                if (
+                    lowerHref.includes('.zip') || lowerHref.includes('.rar') || lowerHref.includes('.7z') || lowerHref.includes('.tar') || lowerHref.includes('.gz') || lowerHref.includes('zippack') ||
+                    lowerLabel.includes('.zip') || lowerLabel.includes('zip pack') || lowerLabel.includes('zippack') || lowerLabel.includes('batch')
+                ) {
+                    continue;
+                }
+                
                 // 1. Cloudflare R2 Direct Stream
                 if (href.includes('r2.cloudflarestorage.com')) {
                     results.push({
@@ -593,7 +617,7 @@ export class Movies4uClient {
                         originalUrl: hubUrl,
                         server: 'Download [Server : 10Gbps 4K] (Direct Cloudflare Worker Stream)',
                         type: 'direct',
-                        headers: { 'User-Agent': DEFAULT_USER_AGENT },
+                        headers: { 'User-Agent': DEFAULT_USER_AGENT, 'Referer': 'https://gamerxyt.com/' },
                         mimeType: 'video/x-matroska'
                     });
                 }
@@ -700,17 +724,23 @@ export class Movies4uClient {
                 'Referer': this.liveBaseUrl
             });
             const links = [...html.matchAll(/<a[^>]+href=["'](https?:\/\/[^"']*(?:hubcloud|gdflix|drive|hubcdn)[^"']*)["'][^>]*>([\s\S]*?)<\/a>/gi)];
-            return links.map(([_, url, rawText]) => {
-                const text = rawText.replace(/<[^>]+>/g, '').trim();
-                return {
-                    quality,
-                    url,
-                    originalUrl: bridgeUrl,
-                    server: text || (url.includes('gdflix') ? 'GDFlix' : 'Hub-Cloud [DD]'),
-                    type: 'download',
-                    headers: { 'User-Agent': DEFAULT_USER_AGENT }
-                };
-            });
+            return links
+                .filter(([_, url, rawText]) => {
+                    const lUrl = url.toLowerCase();
+                    const lText = rawText.toLowerCase();
+                    return !lUrl.includes('.zip') && !lUrl.includes('.rar') && !lUrl.includes('.7z') && !lUrl.includes('zippack') && !lText.includes('.zip') && !lText.includes('zip pack') && !lText.includes('batch');
+                })
+                .map(([_, url, rawText]) => {
+                    const text = rawText.replace(/<[^>]+>/g, '').trim();
+                    return {
+                        quality,
+                        url,
+                        originalUrl: bridgeUrl,
+                        server: text || (url.includes('gdflix') ? 'GDFlix' : 'Hub-Cloud [DD]'),
+                        type: 'download',
+                        headers: { 'User-Agent': DEFAULT_USER_AGENT }
+                    };
+                });
         }
         catch {
             return [];
@@ -729,12 +759,18 @@ export class Movies4uClient {
                 const epNum = parseInt(parts[i], 10);
                 const epContent = parts[i + 1] || '';
                 const links = [...epContent.matchAll(/<a[^>]+href=["'](https?:\/\/[^"']*(?:hubcloud|gdflix|drive|hubcdn)[^"']*)["'][^>]*>([\s\S]*?)<\/a>/gi)];
-                const episodeLinks = links.map(([_, href, rawLabel]) => ({
-                    title: rawLabel.replace(/<[^>]+>/g, '').trim(),
-                    url: href,
-                    server: href.includes('hubcloud') ? 'Hub-Cloud [DD]' : (href.includes('gdflix') ? 'GDFlix' : 'Fast CDN'),
-                    quality
-                }));
+                const episodeLinks = links
+                    .filter(([_, href, rawLabel]) => {
+                        const lHref = href.toLowerCase();
+                        const lLabel = rawLabel.toLowerCase();
+                        return !lHref.includes('.zip') && !lHref.includes('.rar') && !lHref.includes('.7z') && !lHref.includes('zippack') && !lLabel.includes('.zip') && !lLabel.includes('zip pack') && !lLabel.includes('batch');
+                    })
+                    .map(([_, href, rawLabel]) => ({
+                        title: rawLabel.replace(/<[^>]+>/g, '').trim(),
+                        url: href,
+                        server: href.includes('hubcloud') ? 'Hub-Cloud [DD]' : (href.includes('gdflix') ? 'GDFlix' : 'Fast CDN'),
+                        quality
+                    }));
                 episodes.push({
                     episodeNumber: epNum,
                     title: `Episode ${epNum}`,
@@ -784,7 +820,20 @@ export class Movies4uClient {
         return 'video/mp4';
     }
     isDirectMediaStream(url) {
+        if (!url || typeof url !== 'string' || !url.startsWith('http')) return false;
         const lower = url.toLowerCase().split('?')[0];
+        if (
+            lower.includes('.zip') ||
+            lower.includes('.rar') ||
+            lower.includes('.7z') ||
+            lower.includes('.tar') ||
+            lower.includes('.gz') ||
+            lower.includes('.iso') ||
+            lower.includes('zippack') ||
+            lower.includes('zip_pack')
+        ) {
+            return false;
+        }
         return lower.endsWith('.m3u8')
             || lower.endsWith('.mp4')
             || lower.endsWith('.mkv')
