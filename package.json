@@ -1,0 +1,33 @@
+﻿{
+  "name": "providers-nexplay",
+  "version": "1.0.0",
+  "description": "High-Speed Native Scraper Engine & Stream Resolvers for NexPlay (HDHub4u, 4KHDHub, Movies4u)",
+  "type": "module",
+  "main": "index.mjs",
+  "scripts": {
+    "start": "node runner.mjs",
+    "test": "node tests/test_deep_diagnostics.mjs",
+    "test:servers": "node tests/test_servers.mjs",
+    "test:s1-s2": "node tests/test_s1_s2.mjs",
+    "test:m4u": "node tests/test_m4u.mjs",
+    "test:strict": "node tests/test_strict_servers.mjs",
+    "sync": "powershell -ExecutionPolicy Bypass -File ./sync_to_app.ps1"
+  },
+  "keywords": [
+    "scraper",
+    "video-streaming",
+    "exoplayer",
+    "hdhub4u",
+    "4khdhub",
+    "movies4u",
+    "hubcloud",
+    "gdflix",
+    "stream-resolver"
+  ],
+  "author": "NexPlay",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.7.9",
+    "cheerio": "^1.0.0"
+  }
+}
