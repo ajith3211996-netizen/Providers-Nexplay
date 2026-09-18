@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "version": "1.0.0",
-  "updatedAt": "2026-09-18T14:26:52.218Z",
-  "commitSha": "7b9f5a4",
+  "version": "1.0.1",
+  "updatedAt": "2026-09-18T14:47:05.525Z",
+  "commitSha": "63901b6",
   "name": "NexPlay Providers Configuration",
   "description": "Dynamic Over-The-Air scraper and provider definitions for NexPlay & Stitch-Nexplay",
   "providers": {
@@ -57,8 +57,9 @@
       "name": "Server 3 (Movies4u)",
       "enabled": true,
       "priority": 3,
-      "baseUrl": "https://movies4u.co",
+      "baseUrl": "https://new6.movies4u.clinic",
       "mirrors": [
+        "https://new6.movies4u.clinic",
         "https://movies4u.co",
         "https://movies4u.clinic",
         "https://movies4u.vip"
