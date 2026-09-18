@@ -55,6 +55,58 @@ export function extractStreamUrls(code) {
     return Array.from(new Set(matches.map(m => m[0])));
 }
 
+export function getStreamPriority(url, serverLabel = '') {
+    const u = (url || '').toLowerCase();
+    const s = (serverLabel || '').toLowerCase();
+    // 1. [Download FSL server] (Cloudflare R2 Direct)
+    if (u.includes('r2.cloudflarestorage.com') || u.includes('r2.dev') || s.includes('fsl server') || s.includes('fsl 4k') || s.includes('fsl 1080p') || s.includes('fsl direct')) {
+        return 1;
+    }
+    // 2. [Download FSL v2 server] (FastDL / Bunker / Valentine / Lenin CDN / Pongala)
+    if (u.includes('fastdl') || u.includes('bunker.monster') || u.includes('valentine.guru') || u.includes('pongala.life') || u.includes('lenin.buzz') || s.includes('fslv2') || s.includes('fsl v2') || s.includes('fastdl')) {
+        return 2;
+    }
+    // 3. pixeldrain (PixelDrain Direct CDN Stream)
+    if (u.includes('pixeldrain.dev/api/file') || u.includes('pixeldrain.com/api/file') || s.includes('pixel') || s.includes('pixeldrain')) {
+        return 3;
+    }
+    // 4. Watch online (Direct player / HLS stream)
+    if (u.includes('.m3u8') || s.includes('watch online') || s.includes('hdstream4u') || s.includes('hubstream') || s.includes('m4uplay')) {
+        return 4;
+    }
+    // 5. Cloudflare Workers / HubCDN Direct
+    if (u.includes('workers.dev') || u.includes('hubcdn') || s.includes('worker')) {
+        return 5;
+    }
+    // 99. [Download server : 10gbps] Google CDN (Strict last resort - no HTTP 206 range support)
+    if (u.includes('googleusercontent.com') || u.includes('video-downloads') || s.includes('10gbps') || s.includes('google cdn')) {
+        return 99;
+    }
+    return 50;
+}
+
+export function getQualityWeight(qStr) {
+    const q = (qStr || '').toLowerCase();
+    if (q === '4k' || q === '2160p' || q === 'uhd') return 40;
+    if (q === '1080p' || q === 'fhd') return 30;
+    if (q === '720p' || q === 'hd') return 20;
+    if (q === '480p' || q === 'sd') return 10;
+    return 25;
+}
+
+export function selectBestStreamCandidate(candidateStreams) {
+    if (!Array.isArray(candidateStreams) || candidateStreams.length === 0) return null;
+    const sorted = [...candidateStreams].sort((a, b) => {
+        const prioA = a.priority ?? getStreamPriority(a.url, a.server);
+        const prioB = b.priority ?? getStreamPriority(b.url, b.server);
+        if (prioA !== prioB) {
+            return prioA - prioB; // 1 (FSL) < 2 (FSLv2) < 3 (Pixeldrain) < 4 (Watch online) < 5 < 99 (Google CDN)
+        }
+        return getQualityWeight(b.quality || b.q) - getQualityWeight(a.quality || a.q);
+    });
+    return sorted[0];
+}
+
 export function sortBridgesByFidelity(bridges) {
     if (!bridges || !Array.isArray(bridges)) return [];
     const isZip = (b) => {
@@ -446,58 +498,50 @@ export class Movies4uClient {
                 return 0;
             });
 
-            let googleCdnFallback = null;
+            const liveCandidates = [];
             for (const candidate of candidates) {
                 try {
                     const qHint = candidate.quality || details.quality || '1080p';
                     const resolved = await this.resolveStream(candidate.url, qHint, fetcher);
                     if (resolved.length > 0) {
                         for (const primary of resolved) {
-                            const isGoogle = primary.url && (primary.url.includes('googleusercontent.com') || primary.url.includes('video-downloads'));
                             const isLive = await this.verifyMediaStream(primary.url, primary.headers);
                             if (isLive) {
                                 const qKey = (primary.quality || qHint || '').toLowerCase().includes('4k') || (primary.quality || qHint || '').includes('2160') 
                                     ? '4k' 
                                     : ((primary.quality || qHint || '').includes('720') ? '720p' : '1080p');
-                                if (isGoogle) {
-                                    if (!googleCdnFallback) {
-                                        googleCdnFallback = { primary, qKey };
-                                    }
-                                    continue;
-                                }
                                 if (!qualities[qKey]) {
                                     qualities[qKey] = primary.url;
                                 }
-                                if (!primaryHeaders.Referer && primary.headers?.Referer) {
-                                    primaryHeaders = primary.headers;
-                                    primaryMime = primary.mimeType || primaryMime;
-                                    primaryServer = primary.server || primaryServer;
-                                }
+                                liveCandidates.push({
+                                    quality: qKey === '4k' ? '4K' : (qKey === '1080p' ? '1080p' : '720p'),
+                                    url: primary.url,
+                                    headers: primary.headers || primaryHeaders,
+                                    mimeType: primary.mimeType || primaryMime,
+                                    server: primary.server || (qKey === '4k' ? 'Server 3 (Movies4u 4K Direct)' : 'Server 3 (Movies4u)'),
+                                    priority: primary.priority ?? getStreamPriority(primary.url, primary.server)
+                                });
                             }
                         }
                     }
                 } catch (e) {}
-                if ((qualities['4k'] && qualities['1080p']) || Object.keys(qualities).length >= 2 || qualities['1080p'] || qualities['4k']) break;
+                const hasHighPrio = liveCandidates.some(c => c.priority <= 3);
+                if (hasHighPrio && liveCandidates.length >= 2) break;
             }
 
-            if (Object.keys(qualities).length === 0 && googleCdnFallback) {
-                qualities[googleCdnFallback.qKey] = googleCdnFallback.primary.url;
-                primaryServer = googleCdnFallback.primary.server || 'Download [Server : 10Gbps] (Google CDN Stream - No 206 Partial Content)';
-            }
-
-            const primaryUrl = qualities['4k'] || qualities['2160p'] || qualities['1080p'] || qualities['720p'] || Object.values(qualities)[0];
-            if (primaryUrl) {
-                const chosenQ = (qualities['4k'] || qualities['2160p']) ? '4K' : (qualities['1080p'] ? '1080p' : '720p');
+            const bestCandidate = selectBestStreamCandidate(liveCandidates);
+            if (bestCandidate) {
+                const primaryUrl = bestCandidate.url;
                 const isHls = primaryUrl.includes('.m3u8');
                 return {
                     title: details.title,
                     mediaType: 'movie',
                     streamUrl: primaryUrl,
                     qualities,
-                    headers: primaryHeaders,
-                    mimeType: isHls ? 'application/vnd.apple.mpegurl' : primaryMime,
-                    quality: chosenQ,
-                    server: chosenQ === '4K' ? 'Server 3 (Movies4u 4K Direct)' : 'Server 3 (Movies4u)',
+                    headers: bestCandidate.headers || primaryHeaders,
+                    mimeType: isHls ? 'application/vnd.apple.mpegurl' : (bestCandidate.mimeType || primaryMime),
+                    quality: bestCandidate.quality || '1080p',
+                    server: bestCandidate.server || 'Server 3 (Movies4u)',
                     thumbnail: details.thumbnail
                 };
             }
@@ -508,8 +552,7 @@ export class Movies4uClient {
             const season = details.seasons?.find(s => s.seasonNumber === seasonNumber) || details.seasons?.[0];
             const sortedBridges = season && season.qualityBridges.length > 0 ? sortBridgesByFidelity(season.qualityBridges) : [];
             const qualities = {};
-            let primaryResult = null;
-            let googleCdnSeriesFallback = null;
+            const liveCandidates = [];
 
             // Iterate across candidate bridges in fidelity order (1080p / 4K / 720p)
             for (const bridge of sortedBridges) {
@@ -522,73 +565,49 @@ export class Movies4uClient {
                                 const resolved = await this.resolveStream(l.url, bridge.quality || '1080p', fetcher);
                                 if (resolved.length > 0) {
                                     for (const candidateStream of resolved) {
-                                        const isGoogle = candidateStream.url && (candidateStream.url.includes('googleusercontent.com') || candidateStream.url.includes('video-downloads'));
                                         const isLive = await this.verifyMediaStream(candidateStream.url, candidateStream.headers);
                                         if (isLive) {
                                             const qKey = (bridge.quality || '').toLowerCase().includes('4k') || (bridge.quality || '').includes('2160') ? '4k' : ((bridge.quality || '').includes('1080') ? '1080p' : ((bridge.quality || '').includes('720') ? '720p' : '1080p'));
-                                            if (isGoogle) {
-                                                if (!googleCdnSeriesFallback) {
-                                                    googleCdnSeriesFallback = {
-                                                        candidateStream,
-                                                        qKey,
-                                                        ep
-                                                    };
-                                                }
-                                                continue;
-                                            }
                                             if (!qualities[qKey]) {
                                                 qualities[qKey] = candidateStream.url;
                                             }
-                                            if (!primaryResult) {
-                                                primaryResult = {
-                                                    title: `${details.title} - S${seasonNumber}E${ep.episodeNumber}`,
-                                                    mediaType: 'series',
-                                                    seasonNumber,
-                                                    episodeNumber: ep.episodeNumber,
-                                                    streamUrl: candidateStream.url,
-                                                    headers: candidateStream.headers || { 'User-Agent': DEFAULT_USER_AGENT },
-                                                    mimeType: candidateStream.mimeType || 'video/x-matroska',
-                                                    quality: qKey === '4k' ? '4K' : (qKey === '1080p' ? '1080p' : qKey),
-                                                    server: candidateStream.server || 'Server 3 (Movies4u)',
-                                                    thumbnail: details.thumbnail
-                                                };
-                                            }
-                                            break;
+                                            liveCandidates.push({
+                                                quality: qKey === '4k' ? '4K' : (qKey === '1080p' ? '1080p' : qKey),
+                                                url: candidateStream.url,
+                                                headers: candidateStream.headers || { 'User-Agent': DEFAULT_USER_AGENT },
+                                                mimeType: candidateStream.mimeType || 'video/x-matroska',
+                                                server: candidateStream.server || 'Server 3 (Movies4u)',
+                                                priority: candidateStream.priority ?? getStreamPriority(candidateStream.url, candidateStream.server),
+                                                ep
+                                            });
                                         }
                                     }
                                 }
                             } catch (e) {}
-                            const qKey = (bridge.quality || '').toLowerCase().includes('4k') || (bridge.quality || '').includes('2160') ? '4k' : ((bridge.quality || '').includes('1080') ? '1080p' : ((bridge.quality || '').includes('720') ? '720p' : '1080p'));
-                            if (qualities[qKey]) break;
+                            if (qualities['4k'] && qualities['1080p']) break;
                         }
                     }
                 } catch (bErr) {}
-                if (qualities['4k'] && qualities['1080p']) break;
+                const hasHighPrio = liveCandidates.some(c => c.priority <= 3);
+                if (hasHighPrio && liveCandidates.length >= 2) break;
             }
 
-            if (!primaryResult && googleCdnSeriesFallback) {
-                const fb = googleCdnSeriesFallback;
-                qualities[fb.qKey] = fb.candidateStream.url;
-                primaryResult = {
-                    title: `${details.title} - S${seasonNumber}E${fb.ep.episodeNumber}`,
+            const bestCandidate = selectBestStreamCandidate(liveCandidates);
+            if (bestCandidate) {
+                const ep = bestCandidate.ep || details.episodes?.find(e => e.episodeNumber === episodeNumber) || { episodeNumber };
+                return {
+                    title: `${details.title} - S${seasonNumber}E${ep.episodeNumber}`,
                     mediaType: 'series',
                     seasonNumber,
-                    episodeNumber: fb.ep.episodeNumber,
-                    streamUrl: fb.candidateStream.url,
-                    headers: fb.candidateStream.headers || { 'User-Agent': DEFAULT_USER_AGENT },
-                    mimeType: fb.candidateStream.mimeType || 'video/mp4',
-                    quality: fb.qKey === '4k' ? '4K' : (fb.qKey === '1080p' ? '1080p' : fb.qKey),
-                    server: fb.candidateStream.server || 'Download [Server : 10Gbps] (Google CDN Stream - No 206 Partial Content)',
+                    episodeNumber: ep.episodeNumber,
+                    streamUrl: bestCandidate.url,
+                    qualities,
+                    headers: bestCandidate.headers || { 'User-Agent': DEFAULT_USER_AGENT },
+                    mimeType: bestCandidate.mimeType || 'video/x-matroska',
+                    quality: bestCandidate.quality || '1080p',
+                    server: bestCandidate.server || 'Server 3 (Movies4u)',
                     thumbnail: details.thumbnail
                 };
-            }
-
-            if (primaryResult) {
-                primaryResult.qualities = qualities;
-                const primaryUrl = qualities['4k'] || qualities['2160p'] || qualities['1080p'] || qualities['720p'] || primaryResult.streamUrl;
-                primaryResult.streamUrl = primaryUrl;
-                primaryResult.quality = (qualities['4k'] || qualities['2160p']) ? '4K' : (qualities['1080p'] ? '1080p' : primaryResult.quality);
-                return primaryResult;
             }
 
             // Fallback to ep.links on details
