@@ -109,7 +109,7 @@ Providers-Nexplay/
 ├── package.json               # Package manifests & scripts
 ├── index.mjs                  # Primary ES Module exports
 ├── runner.mjs                 # Interactive CLI stream probe & resolution tool
-├── sync_to_app.ps1            # Auto-sync updated scrapers back to Stitch-nexplay
+├── sync_from_app.ps1          # Sync updated scrapers from Stitch-nexplay into this repo
 ├── README.md                  # Complete documentation
 ├── scripts/
 │   └── build_manifest.mjs     # CLI tool to build & bump version manifests
@@ -127,7 +127,9 @@ Providers-Nexplay/
 │   └── config/
 │       └── tmdb.js                # TMDB API keys and endpoint configuration
 └── tests/
-    └── test_ota_update.mjs        # Verification suite for OTA updater & hot-patching
+    ├── test_ota_update.mjs        # Verification suite for OTA updater & hot-patching
+    ├── test_reacher.mjs           # Greenmotors / Homelander 0ms bypass test
+    └── test_shortener.mjs         # Ad shortener decoding test
 ```
 
 ---
@@ -156,8 +158,17 @@ node runner.mjs "The Boys" --year 2019 --tv --season 4 --episode 1
 node runner.mjs "Stree 2" --year 2024 --server 1
 ```
 
-### 4. Sync Updates Back to Main App (`Stitch-nexplay`)
-Once tested, sync files directly back into `Stitch-nexplay` with:
+### 4. Sync Updates From Stitch-nexplay
+When you make scraper changes in `Stitch-nexplay`, pull them into this repo with:
 ```bash
 npm run sync
+```
+
+### 5. Push Live OTA Updates to GitHub
+Push updates to GitHub to distribute them OTA to all NexPlay users:
+```bash
+npm run bump:patch
+git add .
+git commit -m "Update provider domains"
+git push origin main
 ```
