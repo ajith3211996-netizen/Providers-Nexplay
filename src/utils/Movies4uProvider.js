@@ -757,40 +757,25 @@ export class Movies4uClient {
                 }
 
                 // 1. Google CDN / GPDL / 10Gbps Stream
-                if (
-                    lowerHref.includes('googleusercontent.com') ||
-                    lowerHref.includes('video-downloads') ||
-                    lowerHref.includes('dl.php?link=') ||
-                    lowerHref.includes('gpdl') ||
-                    lowerHref.includes('pixel.hubcloud') ||
-                    lowerHref.includes('/?id=') ||
-                    lowerLabel.includes('10gbps')
-                ) {
-                    let directCdn = (lowerHref.includes('googleusercontent.com') || lowerHref.includes('video-downloads')) && !lowerHref.includes('dl.php') && !lowerHref.includes('?url=')
-                        ? href
-                        : this.extractDirectCdnUrl(href);
-                    if (!directCdn || directCdn.includes('gpdl') || directCdn.includes('/?id=')) {
-                        directCdn = await this.resolveGpdlLink(href, currentUrl);
-                    }
-                    if (directCdn && !directCdn.includes('dl.php') && !directCdn.includes('?url=')) {
-                        results.push({
-                            quality: qualityHint,
-                            url: directCdn,
-                            originalUrl: hubUrl,
-                            server: 'Download [Server : 10Gbps] (Google CDN Direct Stream)',
-                            type: 'direct',
-                            headers: { 'User-Agent': DEFAULT_USER_AGENT },
-                            mimeType: 'video/mp4'
-                        });
-                    }
-                }
-                // 2. Cloudflare R2 Direct Stream
-                else if (href.includes('r2.cloudflarestorage.com') || href.includes('r2.dev')) {
+                // 1. Cloudflare R2 Direct Stream (10Gbps, Instant Range Seek)
+                if (href.includes('r2.cloudflarestorage.com') || href.includes('r2.dev')) {
                     results.push({
                         quality: qualityHint,
                         url: href,
                         originalUrl: hubUrl,
                         server: 'Download [FSL 4K Server] (Cloudflare R2 Direct Stream)',
+                        type: 'direct',
+                        headers: { 'User-Agent': DEFAULT_USER_AGENT },
+                        mimeType: 'video/x-matroska'
+                    });
+                }
+                // 2. FastDL / Bunker / Valentine / Lenin CDN (High-Speed Direct)
+                else if (href.includes('fastdl') || href.includes('bunker.monster') || href.includes('valentine.guru') || href.includes('cdn.lenin.buzz') || (href.includes('.mkv') && href.includes('token='))) {
+                    results.push({
+                        quality: qualityHint,
+                        url: href,
+                        originalUrl: hubUrl,
+                        server: 'Download [FastDL] (Direct High-Speed Stream)',
                         type: 'direct',
                         headers: { 'User-Agent': DEFAULT_USER_AGENT },
                         mimeType: 'video/x-matroska'
@@ -823,29 +808,33 @@ export class Movies4uClient {
                         });
                     }
                 }
-                // 5. Lenin Buzz CDN
-                else if (href.includes('cdn.lenin.buzz') || (href.includes('.mkv') && href.includes('token='))) {
-                    results.push({
-                        quality: qualityHint,
-                        url: href,
-                        originalUrl: hubUrl,
-                        server: 'Download [FSLv2 Server] (Lenin CDN Direct Stream)',
-                        type: 'direct',
-                        headers: { 'User-Agent': DEFAULT_USER_AGENT },
-                        mimeType: 'video/x-matroska'
-                    });
-                }
-                // 6. FastDL / Bunker / Valentine
-                else if (href.includes('fastdl') || href.includes('bunker.monster') || href.includes('valentine.guru')) {
-                    results.push({
-                        quality: qualityHint,
-                        url: href,
-                        originalUrl: hubUrl,
-                        server: 'Download [FastDL] (Direct High-Speed Stream)',
-                        type: 'direct',
-                        headers: { 'User-Agent': DEFAULT_USER_AGENT },
-                        mimeType: 'video/x-matroska'
-                    });
+                // 5. Fallback: Google CDN Direct Stream
+                else if (
+                    lowerHref.includes('googleusercontent.com') ||
+                    lowerHref.includes('video-downloads') ||
+                    lowerHref.includes('dl.php?link=') ||
+                    lowerHref.includes('gpdl') ||
+                    lowerHref.includes('pixel.hubcloud') ||
+                    lowerHref.includes('/?id=') ||
+                    lowerLabel.includes('10gbps')
+                ) {
+                    let directCdn = (lowerHref.includes('googleusercontent.com') || lowerHref.includes('video-downloads')) && !lowerHref.includes('dl.php') && !lowerHref.includes('?url=')
+                        ? href
+                        : this.extractDirectCdnUrl(href);
+                    if (!directCdn || directCdn.includes('gpdl') || directCdn.includes('/?id=')) {
+                        directCdn = await this.resolveGpdlLink(href, currentUrl);
+                    }
+                    if (directCdn && !directCdn.includes('dl.php') && !directCdn.includes('?url=')) {
+                        results.push({
+                            quality: qualityHint,
+                            url: directCdn,
+                            originalUrl: hubUrl,
+                            server: 'Download [Server : 10Gbps] (Google CDN Direct Stream)',
+                            type: 'direct',
+                            headers: { 'User-Agent': DEFAULT_USER_AGENT },
+                            mimeType: 'video/mp4'
+                        });
+                    }
                 }
             }
         }

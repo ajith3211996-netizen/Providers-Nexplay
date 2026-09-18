@@ -933,7 +933,7 @@ var ClientUtils = class {
               type: "direct",
               headers: defaultHeaders,
               mimeType: this.detectMimeType(directGoogle),
-              priority: 2
+              priority: 8
             });
           }
         }
@@ -1028,7 +1028,7 @@ var ClientUtils = class {
             type: "direct",
             headers: defaultHeaders,
             mimeType: this.detectMimeType(directUrl),
-            priority: 6
+            priority: 9
           });
         }
       }
