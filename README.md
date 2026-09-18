@@ -1,6 +1,6 @@
-﻿# NexPlay Scraper Engine & Providers Service
+# NexPlay Scraper Engine & Dynamic OTA Providers Service
 
-Standalone, high-speed multi-provider scraping and direct stream resolution engine for **NexPlay**.
+Standalone, high-speed multi-provider scraping, direct stream resolution engine, and **Over-The-Air (OTA) Dynamic Remote Provider Updater** for **NexPlay** and **Stitch-Nexplay**.
 
 ---
 
@@ -14,17 +14,108 @@ Standalone, high-speed multi-provider scraping and direct stream resolution engi
 
 ---
 
+## 🔄 Dynamic Over-The-Air (OTA) Updates via GitHub
+
+When domains change or scrapers are updated in this repository on GitHub (`https://github.com/ajith3211996-netizen/Providers-Nexplay`), the **Stitch-Nexplay** app automatically checks for and applies those updates every time a user opens the app—**without requiring an APK update or app store re-installation**!
+
+```mermaid
+flowchart TD
+    A[Push domain / scraper changes to Providers-Nexplay GitHub repo] --> B[manifest.json on GitHub updated]
+    C[User launches Stitch-Nexplay app] --> D[App opens instantly with local cached providers]
+    D --> E[ProviderUpdateManager runs in background]
+    E --> F{Check manifest.json on GitHub / CDN}
+    F -->|New Update Available| G[Download new config & save to storage]
+    G --> H[Hot-patch ExtensionManager & ScraperEngine in-memory]
+    F -->|No Updates / Offline| I[Continue using local cached providers smoothly]
+```
+
+### 📱 How to Integrate in `Stitch-Nexplay` (`App.js` / `index.js`)
+
+In `Stitch-nexplay`, simply initialize dynamic updates on app launch:
+
+```javascript
+import React, { useEffect } from 'react';
+import { ExtensionManager, ProviderUpdateManager } from './src/utils/ExtensionManager';
+
+export default function App() {
+  useEffect(() => {
+    // 1. Initialize OTA updates in the background (Non-blocking: 0ms startup delay)
+    ExtensionManager.initRemoteUpdates({
+      autoCheck: true,
+      checkIntervalMs: 1000 * 60 * 15 // Check every 15 minutes when app is opened
+    });
+
+    // 2. (Optional) Listen for update events in UI or settings
+    const unsubscribe = ExtensionManager.onUpdate(({ event, data }) => {
+      if (event === 'update-applied') {
+        console.log(`[NexPlay] Scrapers dynamically updated to v${data.version}!`);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  return <YourMainAppNavigator />;
+}
+```
+
+### ⚙️ Manual Update Check (e.g. Settings Screen)
+
+```javascript
+import { ExtensionManager } from './src/utils/ExtensionManager';
+
+async function handleCheckForUpdates() {
+  const result = await ExtensionManager.checkForUpdates(true); // force check
+  if (result.status === 'updated') {
+    alert(`Providers updated to version ${result.newVersion}!`);
+  } else if (result.status === 'up-to-date') {
+    alert('Providers are already up to date.');
+  }
+}
+```
+
+---
+
+## 🛠️ How to Push Updates to GitHub
+
+Whenever a provider changes its domain or scraper rules:
+
+1. Update the domain or scraper logic in `manifest.json`, `ScraperEngine.js`, or `Movies4uProvider.js`.
+2. Bump the version & build the manifest:
+   ```bash
+   npm run bump:patch     # e.g. 1.0.0 -> 1.0.1
+   # OR
+   npm run bump:minor     # e.g. 1.0.0 -> 1.1.0
+   ```
+3. Test locally:
+   ```bash
+   npm test
+   ```
+4. Commit and push to GitHub:
+   ```bash
+   git add .
+   git commit -m "Update HDHub4u / 4KHDHub live domains"
+   git push origin main
+   ```
+5. **Done!** Every user opening `Stitch-nexplay` will immediately receive and apply the new scrapers without an APK update!
+
+---
+
 ## 📁 Directory Structure
 
 ```
 Providers-Nexplay/
-├── package.json               # Package manifests & test/sync scripts
+├── manifest.json              # Central remote configuration & live provider definitions
+├── package.json               # Package manifests & scripts
 ├── index.mjs                  # Primary ES Module exports
 ├── runner.mjs                 # Interactive CLI stream probe & resolution tool
 ├── sync_to_app.ps1            # Auto-sync updated scrapers back to Stitch-nexplay
 ├── README.md                  # Complete documentation
+├── scripts/
+│   └── build_manifest.mjs     # CLI tool to build & bump version manifests
 ├── src/
 │   ├── utils/
+│   │   ├── ProviderUpdateManager.js # Dynamic OTA Update Engine (GitHub + CDN + Storage)
 │   │   ├── ScraperEngine.js       # Core scraper (HDHub4u, 4KHDHub, HubCloud, GDFlix, DDrive, FastDL)
 │   │   ├── Movies4uProvider.js    # Movies4u Provider & P.A.C.K.E.R. JS Unpacker
 │   │   ├── ExtensionManager.js    # Strict server routing & media match orchestrator
@@ -36,12 +127,7 @@ Providers-Nexplay/
 │   └── config/
 │       └── tmdb.js                # TMDB API keys and endpoint configuration
 └── tests/
-    ├── test_deep_diagnostics.mjs  # Automated test suite across movies & multi-season series
-    ├── test_servers.mjs           # Quick verification across Server 1, 2, and 3
-    ├── test_s1_s2.mjs             # Server 1 & Server 2 comparison tests
-    ├── test_m4u.mjs               # Server 3 Movies4u stream tests
-    ├── test_strict_servers.mjs    # Strict server isolation & zero-fallback verification
-    └── ... (individual diagnostic test scripts)
+    └── test_ota_update.mjs        # Verification suite for OTA updater & hot-patching
 ```
 
 ---
@@ -53,7 +139,7 @@ Providers-Nexplay/
 npm install
 ```
 
-### 2. Run Comprehensive Diagnostics Test
+### 2. Run Comprehensive OTA & Resolver Tests
 ```bash
 npm test
 ```
@@ -71,37 +157,7 @@ node runner.mjs "Stree 2" --year 2024 --server 1
 ```
 
 ### 4. Sync Updates Back to Main App (`Stitch-nexplay`)
-Once you test and refine any scrapers here, sync them directly back into `Stitch-nexplay` with:
+Once tested, sync files directly back into `Stitch-nexplay` with:
 ```bash
 npm run sync
-```
-
----
-
-## 💻 Programmatic Usage
-
-```javascript
-import { ExtensionManager } from './index.mjs';
-
-// Media object (from TMDB or manual)
-const media = {
-  id: 533535,
-  title: 'Deadpool & Wolverine',
-  release_date: '2024-07-24',
-  media_type: 'movie'
-};
-
-// Resolve stream from Server 1 (HDHub4u)
-const streamS1 = await ExtensionManager.resolveMediaStream(media, 1);
-console.log('Server 1 Stream:', streamS1.streamUrl);
-
-// Resolve TV Show Episode from Server 2 (4KHDHub)
-const tvShow = {
-  id: 76479,
-  name: 'The Boys',
-  first_air_date: '2019-07-26',
-  media_type: 'tv'
-};
-const streamS2 = await ExtensionManager.resolveMediaStream(tvShow, 2, 4, 1); // Season 4, Episode 1
-console.log('Server 2 Stream:', streamS2.streamUrl);
 ```

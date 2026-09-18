@@ -1,4 +1,4 @@
-﻿{
+{
   "name": "providers-nexplay",
   "version": "1.0.0",
   "description": "High-Speed Native Scraper Engine & Stream Resolvers for NexPlay (HDHub4u, 4KHDHub, Movies4u)",
@@ -6,7 +6,11 @@
   "main": "index.mjs",
   "scripts": {
     "start": "node runner.mjs",
-    "test": "node tests/test_deep_diagnostics.mjs",
+    "build:manifest": "node scripts/build_manifest.mjs",
+    "bump:patch": "node scripts/build_manifest.mjs --bump-patch",
+    "bump:minor": "node scripts/build_manifest.mjs --bump-minor",
+    "test": "node tests/test_ota_update.mjs",
+    "test:ota": "node tests/test_ota_update.mjs",
     "test:servers": "node tests/test_servers.mjs",
     "test:s1-s2": "node tests/test_s1_s2.mjs",
     "test:m4u": "node tests/test_m4u.mjs",

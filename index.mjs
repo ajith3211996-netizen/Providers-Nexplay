@@ -1,10 +1,11 @@
-﻿/**
+/**
  * Providers-Nexplay
  * Complete Scraper Engine, Stream Resolvers, and Provider Services
  */
 
-// Core Extension Manager & Strict Provider Routing
-export { ExtensionManager } from './src/utils/ExtensionManager.js';
+// Core Extension Manager, Strict Provider Routing & Dynamic OTA Updates
+export { ExtensionManager, ProviderUpdateManager } from './src/utils/ExtensionManager.js';
+export { ProviderUpdateManager as UpdateManager } from './src/utils/ProviderUpdateManager.js';
 
 // Individual Scraper Engines & Helpers
 export { 

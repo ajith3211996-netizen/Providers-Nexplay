@@ -88,12 +88,38 @@ const DEFAULT_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKi
  */
 export class Movies4uClient {
     liveBaseUrl = 'https://new6.movies4u.clinic';
+    mirrors = ['https://new6.movies4u.clinic', 'https://movies4u.co', 'https://movies4u.clinic', 'https://movies4u.vip'];
     domainResolved = false;
     constructor(customBaseUrl) {
         if (customBaseUrl) {
             this.liveBaseUrl = customBaseUrl.replace(/\/+$/, '');
             this.domainResolved = true;
         }
+    }
+
+    setBaseUrl(url) {
+        if (url && typeof url === 'string') {
+            this.liveBaseUrl = url.replace(/\/+$/, '');
+            this.domainResolved = true;
+            if (!this.mirrors.includes(this.liveBaseUrl)) {
+                this.mirrors.unshift(this.liveBaseUrl);
+            }
+        }
+    }
+
+    setMirrors(mirrors) {
+        if (Array.isArray(mirrors) && mirrors.length > 0) {
+            this.mirrors = mirrors.map(m => m.replace(/\/+$/, ''));
+            if (this.mirrors.length > 0) {
+                this.liveBaseUrl = this.mirrors[0];
+                this.domainResolved = true;
+            }
+        }
+    }
+
+    applyRemoteConfig(config = {}) {
+        if (config.baseUrl) this.setBaseUrl(config.baseUrl);
+        if (Array.isArray(config.mirrors)) this.setMirrors(config.mirrors);
     }
     /**
      * Resolves the active live mirror from the entry point https://movies4u.foo
@@ -329,18 +355,90 @@ export class Movies4uClient {
     /**
      * High-level 1-Click Playable Stream Generator for Media3 ExoPlayer
      */
+    extractDirectCdnUrl(url) {
+        if (!url || typeof url !== 'string') return null;
+        const clean = url.trim();
+        if (clean.includes("video-downloads.googleusercontent.com") && !clean.includes("dl.php") && !clean.includes("?url=") && !clean.includes("?link=")) {
+            return clean;
+        }
+        try {
+            const u = new URL(clean);
+            const linkParam = u.searchParams.get('link') || u.searchParams.get('url') || u.searchParams.get('file');
+            if (linkParam && linkParam.startsWith('http')) {
+                return this.extractDirectCdnUrl(linkParam);
+            }
+        } catch (e) {
+            const m = clean.match(/(?:[?&](?:link|url|file)=)(https?%3A%2F%2F[^\s"'<>]+|https?:\/\/[^\s"'<>]+)/i);
+            if (m && m[1]) {
+                const decoded = decodeURIComponent(m[1]);
+                if (decoded.startsWith('http')) return this.extractDirectCdnUrl(decoded);
+            }
+        }
+        return clean;
+    }
+
+    async verifyMediaStream(streamUrl, headers = {}, timeoutMs = 3500) {
+        if (!streamUrl || !streamUrl.startsWith("http")) return false;
+        let controller = null;
+        let timeoutId = null;
+        try {
+            if (typeof AbortController !== "undefined") {
+                controller = new AbortController();
+                timeoutId = setTimeout(() => {
+                    try { controller.abort(); } catch (_) {}
+                }, timeoutMs);
+            }
+            const reqHeaders = {
+                "User-Agent": headers["User-Agent"] || DEFAULT_USER_AGENT,
+                "Range": "bytes=0-1024",
+                ...(headers["Referer"] && !streamUrl.includes("pixeldrain") && !streamUrl.includes("googleusercontent.com") ? { "Referer": headers["Referer"] } : {})
+            };
+            const res = await fetch(streamUrl, {
+                method: "GET",
+                headers: reqHeaders,
+                signal: controller ? controller.signal : void 0,
+                redirect: "follow"
+            });
+            const status = res.status;
+            const contentType = (res.headers.get("content-type") || "").toLowerCase();
+            if (contentType.includes("zip") || contentType.includes("html") || contentType.includes("json")) {
+                return false;
+            }
+            if (streamUrl.includes("testzip.php") || streamUrl.includes("negn6f")) {
+                return false;
+            }
+            return (status >= 200 && status < 400);
+        } catch {
+            return false;
+        } finally {
+            if (timeoutId) clearTimeout(timeoutId);
+            try { if (controller) controller.abort(); } catch (_) {}
+        }
+    }
+
+    /**
+     * High-level 1-Click Playable Stream Generator for Media3 ExoPlayer
+     */
     async getPlayableStream(pageUrl, isTVShow = false, episodeNumber = 1, seasonNumber = 1, customHttpGet) {
         const fetcher = customHttpGet || this.defaultHttpGet.bind(this);
         const details = await this.extractDetails(pageUrl, seasonNumber, fetcher);
         
         if (!isTVShow && details.mediaType === 'movie') {
             const qualities = {};
+            let primaryHeaders = { 'User-Agent': DEFAULT_USER_AGENT };
+            let primaryMime = 'video/x-matroska';
+            let primaryServer = 'Server 3 (Movies4u)';
+
             const candidates = [
-                ...(details.streamingLinks || []).filter(s => !s.url.includes('m4uplay.store')),
+                ...(details.streamingLinks || []),
                 ...(details.downloadLinks || [])
             ];
-            // Prioritize 4K/GDFlix/HubCloud bridges
+            // Prioritize M4UPlay (Adaptive HLS) -> 4K/UHD -> 1080p -> 720p
             candidates.sort((a, b) => {
+                const aM4u = (a.server || '').includes('M4UPlay') || (a.url || '').includes('m4uplay');
+                const bM4u = (b.server || '').includes('M4UPlay') || (b.url || '').includes('m4uplay');
+                if (aM4u && !bM4u) return -1;
+                if (!aM4u && bM4u) return 1;
                 const a4K = /\b(2160p|4k|uhd)\b/i.test(`${a.quality || ''} ${a.server || ''}`);
                 const b4K = /\b(2160p|4k|uhd)\b/i.test(`${b.quality || ''} ${b.server || ''}`);
                 if (a4K && !b4K) return -1;
@@ -350,26 +448,41 @@ export class Movies4uClient {
 
             for (const candidate of candidates) {
                 try {
-                    const qHint = candidate.quality || details.quality || '4K';
+                    const qHint = candidate.quality || details.quality || '1080p';
                     const resolved = await this.resolveStream(candidate.url, qHint, fetcher);
                     if (resolved.length > 0) {
-                        const primary = resolved[0];
-                        const qKey = (qHint.toLowerCase().includes('4k') || qHint.includes('2160')) ? '4k' : (qHint.includes('1080') ? '1080p' : (qHint.includes('720') ? '720p' : '1080p'));
-                        if (!qualities[qKey]) qualities[qKey] = primary.url;
+                        for (const primary of resolved) {
+                            const isLive = await this.verifyMediaStream(primary.url, primary.headers);
+                            if (isLive) {
+                                const qKey = (primary.quality || qHint || '').toLowerCase().includes('4k') || (primary.quality || qHint || '').includes('2160') 
+                                    ? '4k' 
+                                    : ((primary.quality || qHint || '').includes('720') ? '720p' : '1080p');
+                                if (!qualities[qKey]) {
+                                    qualities[qKey] = primary.url;
+                                }
+                                if (!primaryHeaders.Referer && primary.headers?.Referer) {
+                                    primaryHeaders = primary.headers;
+                                    primaryMime = primary.mimeType || primaryMime;
+                                    primaryServer = primary.server || primaryServer;
+                                }
+                            }
+                        }
                     }
                 } catch (e) {}
+                if ((qualities['4k'] && qualities['1080p']) || Object.keys(qualities).length >= 2 || qualities['1080p'] || qualities['4k']) break;
             }
 
             const primaryUrl = qualities['4k'] || qualities['2160p'] || qualities['1080p'] || qualities['720p'] || Object.values(qualities)[0];
             if (primaryUrl) {
                 const chosenQ = (qualities['4k'] || qualities['2160p']) ? '4K' : (qualities['1080p'] ? '1080p' : '720p');
+                const isHls = primaryUrl.includes('.m3u8');
                 return {
                     title: details.title,
                     mediaType: 'movie',
                     streamUrl: primaryUrl,
                     qualities,
-                    headers: { 'User-Agent': DEFAULT_USER_AGENT },
-                    mimeType: 'video/x-matroska',
+                    headers: primaryHeaders,
+                    mimeType: isHls ? 'application/vnd.apple.mpegurl' : primaryMime,
                     quality: chosenQ,
                     server: chosenQ === '4K' ? 'Server 3 (Movies4u 4K Direct)' : 'Server 3 (Movies4u)',
                     thumbnail: details.thumbnail
@@ -384,7 +497,7 @@ export class Movies4uClient {
             const qualities = {};
             let primaryResult = null;
 
-            // Iterate across candidate bridges in fidelity order (4K -> 1080p -> 720p)
+            // Iterate across candidate bridges in fidelity order (1080p / 4K / 720p)
             for (const bridge of sortedBridges) {
                 try {
                     const episodes = await this.extractEpisodesFromBridge(bridge.bridgeUrl, bridge.quality, fetcher);
@@ -392,30 +505,36 @@ export class Movies4uClient {
                     if (ep && ep.links && ep.links.length > 0) {
                         for (const l of ep.links) {
                             try {
-                                const resolved = await this.resolveStream(l.url, bridge.quality || '4K', fetcher);
+                                const resolved = await this.resolveStream(l.url, bridge.quality || '1080p', fetcher);
                                 if (resolved.length > 0) {
-                                    const primary = resolved[0];
-                                    const qKey = (bridge.quality || '').toLowerCase().includes('4k') || (bridge.quality || '').includes('2160') ? '4k' : ((bridge.quality || '').includes('1080') ? '1080p' : ((bridge.quality || '').includes('720') ? '720p' : '1080p'));
-                                    if (!qualities[qKey]) {
-                                        qualities[qKey] = primary.url;
+                                    for (const candidateStream of resolved) {
+                                        const isLive = await this.verifyMediaStream(candidateStream.url, candidateStream.headers);
+                                        if (isLive) {
+                                            const qKey = (bridge.quality || '').toLowerCase().includes('4k') || (bridge.quality || '').includes('2160') ? '4k' : ((bridge.quality || '').includes('1080') ? '1080p' : ((bridge.quality || '').includes('720') ? '720p' : '1080p'));
+                                            if (!qualities[qKey]) {
+                                                qualities[qKey] = candidateStream.url;
+                                            }
+                                            if (!primaryResult) {
+                                                primaryResult = {
+                                                    title: `${details.title} - S${seasonNumber}E${ep.episodeNumber}`,
+                                                    mediaType: 'series',
+                                                    seasonNumber,
+                                                    episodeNumber: ep.episodeNumber,
+                                                    streamUrl: candidateStream.url,
+                                                    headers: candidateStream.headers || { 'User-Agent': DEFAULT_USER_AGENT },
+                                                    mimeType: candidateStream.mimeType || 'video/x-matroska',
+                                                    quality: qKey === '4k' ? '4K' : (qKey === '1080p' ? '1080p' : qKey),
+                                                    server: candidateStream.server || 'Server 3 (Movies4u)',
+                                                    thumbnail: details.thumbnail
+                                                };
+                                            }
+                                            break;
+                                        }
                                     }
-                                    if (!primaryResult) {
-                                        primaryResult = {
-                                            title: `${details.title} - S${seasonNumber}E${ep.episodeNumber}`,
-                                            mediaType: 'series',
-                                            seasonNumber,
-                                            episodeNumber: ep.episodeNumber,
-                                            streamUrl: primary.url,
-                                            headers: primary.headers || { 'User-Agent': DEFAULT_USER_AGENT },
-                                            mimeType: primary.mimeType || 'video/x-matroska',
-                                            quality: qKey === '4k' ? '4K' : (qKey === '1080p' ? '1080p' : qKey),
-                                            server: primary.server || 'Server 3 (Movies4u)',
-                                            thumbnail: details.thumbnail
-                                        };
-                                    }
-                                    break;
                                 }
                             } catch (e) {}
+                            const qKey = (bridge.quality || '').toLowerCase().includes('4k') || (bridge.quality || '').includes('2160') ? '4k' : ((bridge.quality || '').includes('1080') ? '1080p' : ((bridge.quality || '').includes('720') ? '720p' : '1080p'));
+                            if (qualities[qKey]) break;
                         }
                     }
                 } catch (bErr) {}
@@ -435,23 +554,27 @@ export class Movies4uClient {
             if (ep && ep.links && ep.links.length > 0) {
                 for (const bridge of ep.links) {
                     try {
-                        const resolved = await this.resolveStream(bridge.url, bridge.quality || '4K', fetcher);
+                        const resolved = await this.resolveStream(bridge.url, bridge.quality || '1080p', fetcher);
                         if (resolved.length > 0) {
-                            const primary = resolved[0];
-                            return {
-                                title: `${details.title} - S${seasonNumber}E${ep.episodeNumber}`,
-                                mediaType: 'series',
-                                seasonNumber,
-                                episodeNumber: ep.episodeNumber,
-                                streamUrl: primary.url,
-                                qualities: { '4k': primary.url },
-                                headers: primary.headers || { 'User-Agent': DEFAULT_USER_AGENT },
-                                mimeType: primary.mimeType || 'video/x-matroska',
-                                quality: primary.quality || '4K',
-                                server: primary.server || 'Server 3 (Movies4u)',
-                                thumbnail: details.thumbnail,
-                                backupStreams: resolved.slice(1)
-                            };
+                            for (const candidateStream of resolved) {
+                                const isLive = await this.verifyMediaStream(candidateStream.url, candidateStream.headers);
+                                if (isLive) {
+                                    return {
+                                        title: `${details.title} - S${seasonNumber}E${ep.episodeNumber}`,
+                                        mediaType: 'series',
+                                        seasonNumber,
+                                        episodeNumber: ep.episodeNumber,
+                                        streamUrl: candidateStream.url,
+                                        qualities: { '1080p': candidateStream.url },
+                                        headers: candidateStream.headers || { 'User-Agent': DEFAULT_USER_AGENT },
+                                        mimeType: candidateStream.mimeType || 'video/x-matroska',
+                                        quality: candidateStream.quality || '1080p',
+                                        server: candidateStream.server || 'Server 3 (Movies4u)',
+                                        thumbnail: details.thumbnail,
+                                        backupStreams: resolved.slice(1)
+                                    };
+                                }
+                            }
                         }
                     } catch (e) {}
                 }
@@ -550,6 +673,42 @@ export class Movies4uClient {
         }
         return [];
     }
+    async resolveGpdlLink(gpdlUrl, refererUrl) {
+        if (!gpdlUrl || !gpdlUrl.startsWith('http')) return null;
+        const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+        const timeoutId = controller ? setTimeout(() => {
+            try { controller.abort(); } catch (_) {}
+        }, 6000) : null;
+        try {
+            const res = await fetch(gpdlUrl, {
+                method: 'GET',
+                headers: {
+                    'User-Agent': DEFAULT_USER_AGENT,
+                    'Referer': refererUrl || 'https://gamerxyt.com/',
+                    'Range': 'bytes=0-1024'
+                },
+                redirect: 'manual',
+                signal: controller ? controller.signal : void 0
+            });
+            const location = res.headers.get('location');
+            if (location) {
+                const unwrapped = this.extractDirectCdnUrl(location);
+                if (unwrapped && unwrapped.startsWith('http') && !unwrapped.includes('gpdl') && !unwrapped.includes('pixel.hubcloud') && !unwrapped.includes('pixel.rohitkiskk.workers.dev/?id=')) {
+                    return unwrapped;
+                }
+                return await this.resolveGpdlLink(unwrapped || location, gpdlUrl);
+            }
+            if (res.url && res.url !== gpdlUrl) {
+                const unwrapped = this.extractDirectCdnUrl(res.url);
+                if (unwrapped && unwrapped.startsWith('http')) return unwrapped;
+            }
+        } catch {} finally {
+            if (timeoutId) clearTimeout(timeoutId);
+            try { if (controller) controller.abort(); } catch (_) {}
+        }
+        return null;
+    }
+
     async resolveHubCloud(hubUrl, qualityHint, customHttpGet) {
         const fetcher = customHttpGet || this.defaultHttpGet.bind(this);
         const results = [];
@@ -559,9 +718,9 @@ export class Movies4uClient {
                 'User-Agent': DEFAULT_USER_AGENT,
                 'Referer': 'https://m4ulinks.site/'
             });
-            // HubCloud redirects or links to gamerxyt.com/hubcloud.php
-            if (currentUrl.includes('hubcloud.') && !currentUrl.includes('gamerxyt.com')) {
-                const gamerMatch = html.match(/href=["'](https?:\/\/[^"']*gamerxyt\.com\/hubcloud\.php[^"']*)["']/i);
+            // HubCloud redirects or links to gamerxyt.com, sportverse.cc or hubcloud.php
+            if ((currentUrl.includes('hubcloud.') || currentUrl.includes('/video/') || currentUrl.includes('/drive/')) && !currentUrl.includes('gamerxyt.com') && !currentUrl.includes('sportverse.cc')) {
+                const gamerMatch = html.match(/href=["'](https?:\/\/[^"']*(?:gamerxyt|sportverse|hubcloud\.php)[^"']*)["']/i);
                 if (gamerMatch) {
                     currentUrl = gamerMatch[1].replace(/&amp;/g, '&');
                     html = await fetcher(currentUrl, {
@@ -570,8 +729,8 @@ export class Movies4uClient {
                     });
                 }
             }
-            if (!currentUrl.includes('gamerxyt.com')) {
-                const anyGamer = html.match(/href=["'](https?:\/\/[^"']*gamerxyt\.[^"']*)["']/i)
+            if (!currentUrl.includes('gamerxyt.com') && !currentUrl.includes('sportverse.cc')) {
+                const anyGamer = html.match(/href=["'](https?:\/\/[^"']*(?:gamerxyt|sportverse)[^"']*)["']/i)
                     || html.match(/<a[^>]*id=["']download["'][^>]*href=["']([^"']+)["']/i)
                     || html.match(/var\s+url\s*=\s*['"]([^'"]+)['"]/i);
                 if (anyGamer && anyGamer[1]) {
@@ -582,7 +741,7 @@ export class Movies4uClient {
                     });
                 }
             }
-            // Extract direct stream candidates from landing/gamerxyt page
+            // Extract direct stream candidates from landing/gamerxyt/sportverse page
             const links = [...html.matchAll(/<a[^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi)];
             for (const [_, href, rawLabel] of links) {
                 const label = rawLabel.replace(/<[^>]+>/g, '').trim();
@@ -596,9 +755,37 @@ export class Movies4uClient {
                 ) {
                     continue;
                 }
-                
-                // 1. Cloudflare R2 Direct Stream
-                if (href.includes('r2.cloudflarestorage.com')) {
+
+                // 1. Google CDN / GPDL / 10Gbps Stream
+                if (
+                    lowerHref.includes('googleusercontent.com') ||
+                    lowerHref.includes('video-downloads') ||
+                    lowerHref.includes('dl.php?link=') ||
+                    lowerHref.includes('gpdl') ||
+                    lowerHref.includes('pixel.hubcloud') ||
+                    lowerHref.includes('/?id=') ||
+                    lowerLabel.includes('10gbps')
+                ) {
+                    let directCdn = (lowerHref.includes('googleusercontent.com') || lowerHref.includes('video-downloads')) && !lowerHref.includes('dl.php') && !lowerHref.includes('?url=')
+                        ? href
+                        : this.extractDirectCdnUrl(href);
+                    if (!directCdn || directCdn.includes('gpdl') || directCdn.includes('/?id=')) {
+                        directCdn = await this.resolveGpdlLink(href, currentUrl);
+                    }
+                    if (directCdn && !directCdn.includes('dl.php') && !directCdn.includes('?url=')) {
+                        results.push({
+                            quality: qualityHint,
+                            url: directCdn,
+                            originalUrl: hubUrl,
+                            server: 'Download [Server : 10Gbps] (Google CDN Direct Stream)',
+                            type: 'direct',
+                            headers: { 'User-Agent': DEFAULT_USER_AGENT },
+                            mimeType: 'video/mp4'
+                        });
+                    }
+                }
+                // 2. Cloudflare R2 Direct Stream
+                else if (href.includes('r2.cloudflarestorage.com') || href.includes('r2.dev')) {
                     results.push({
                         quality: qualityHint,
                         url: href,
@@ -609,8 +796,8 @@ export class Movies4uClient {
                         mimeType: 'video/x-matroska'
                     });
                 }
-                // 2. Cloudflare Worker Stream (.dev / workers.dev)
-                else if ((href.includes('workers.dev') || href.includes('.dev')) && !href.includes('/?id=')) {
+                // 3. Cloudflare Worker Stream (.workers.dev)
+                else if (href.includes('workers.dev') && !href.includes('/?id=')) {
                     results.push({
                         quality: qualityHint,
                         url: href,
@@ -621,19 +808,22 @@ export class Movies4uClient {
                         mimeType: 'video/x-matroska'
                     });
                 }
-                // 3. Google CDN Direct Stream
-                else if (href.includes('googleusercontent.com') || href.includes('video-downloads') || href.includes('gpdl.')) {
-                    results.push({
-                        quality: qualityHint,
-                        url: href,
-                        originalUrl: hubUrl,
-                        server: 'Download [Server : 10Gbps] (Google CDN Direct Stream)',
-                        type: 'direct',
-                        headers: { 'User-Agent': DEFAULT_USER_AGENT },
-                        mimeType: 'video/mp4'
-                    });
+                // 4. PixelDrain Direct File API (Skip dead negn6f files)
+                else if ((href.includes('pixeldrain.dev/u/') || href.includes('pixeldrain.com/u/')) && !href.includes('negn6f')) {
+                    const fileId = href.split('/u/')[1]?.split('?')[0]?.replace(/\/+$/, '');
+                    if (fileId && fileId !== 'negn6f') {
+                        results.push({
+                            quality: qualityHint,
+                            url: `https://pixeldrain.com/api/file/${fileId}`,
+                            originalUrl: hubUrl,
+                            server: 'Download [PixelServer] (PixelDrain Direct)',
+                            type: 'direct',
+                            headers: { 'User-Agent': DEFAULT_USER_AGENT },
+                            mimeType: 'video/x-matroska'
+                        });
+                    }
                 }
-                // 4. Lenin Buzz CDN
+                // 5. Lenin Buzz CDN
                 else if (href.includes('cdn.lenin.buzz') || (href.includes('.mkv') && href.includes('token='))) {
                     results.push({
                         quality: qualityHint,
@@ -645,40 +835,13 @@ export class Movies4uClient {
                         mimeType: 'video/x-matroska'
                     });
                 }
-                // 5. FastDL / Bunker / Valentine
+                // 6. FastDL / Bunker / Valentine
                 else if (href.includes('fastdl') || href.includes('bunker.monster') || href.includes('valentine.guru')) {
                     results.push({
                         quality: qualityHint,
                         url: href,
                         originalUrl: hubUrl,
                         server: 'Download [FastDL] (Direct High-Speed Stream)',
-                        type: 'direct',
-                        headers: { 'User-Agent': DEFAULT_USER_AGENT },
-                        mimeType: 'video/x-matroska'
-                    });
-                }
-                // 6. PixelDrain Direct File API
-                else if (href.includes('pixeldrain.dev/u/')) {
-                    const fileId = href.split('/u/')[1]?.split('?')[0];
-                    if (fileId) {
-                        results.push({
-                            quality: qualityHint,
-                            url: `https://pixeldrain.dev/api/file/${fileId}`,
-                            originalUrl: hubUrl,
-                            server: 'Download [PixelServer] (PixelDrain Direct)',
-                            type: 'direct',
-                            headers: { 'User-Agent': DEFAULT_USER_AGENT },
-                            mimeType: 'video/x-matroska'
-                        });
-                    }
-                }
-                // 7. 10Gbps GPDL Stream
-                else if (href.includes('gpdl.hubcloud')) {
-                    results.push({
-                        quality: qualityHint,
-                        url: href,
-                        originalUrl: hubUrl,
-                        server: 'Download [Server : 10Gbps] (Direct CDN Stream)',
                         type: 'direct',
                         headers: { 'User-Agent': DEFAULT_USER_AGENT },
                         mimeType: 'video/x-matroska'
@@ -699,16 +862,42 @@ export class Movies4uClient {
                 'Referer': 'https://m4ulinks.site/'
             });
             const instantMatch = html.match(/href=["'](https?:\/\/[^"']*busycdn\.[^"']*)["']/i);
-            if (instantMatch) {
+            if (instantMatch && instantMatch[1]) {
+                const busyUrl = instantMatch[1];
+                let directCdn = this.extractDirectCdnUrl(busyUrl);
+                if (!directCdn || directCdn.includes('busycdn')) {
+                    const busyController = typeof AbortController !== "undefined" ? new AbortController() : null;
+                    const busyTimer = busyController ? setTimeout(() => {
+                        try { busyController.abort(); } catch (_) {}
+                    }, 5000) : null;
+                    try {
+                        const res = await fetch(busyUrl, {
+                            method: 'GET',
+                            headers: { 
+                                'User-Agent': DEFAULT_USER_AGENT,
+                                'Range': 'bytes=0-1024'
+                            },
+                            signal: busyController ? busyController.signal : void 0,
+                            redirect: 'follow'
+                        });
+                        if (res.url) {
+                            directCdn = this.extractDirectCdnUrl(res.url);
+                        }
+                    } catch (e) {} finally {
+                        if (busyTimer) clearTimeout(busyTimer);
+                        try { if (busyController) busyController.abort(); } catch (_) {}
+                    }
+                }
+                const finalUrl = (directCdn && directCdn.startsWith('http')) ? directCdn : busyUrl;
                 return [{
-                        quality: qualityHint,
-                        url: instantMatch[1],
-                        originalUrl: gdFlixUrl,
-                        server: 'GDFlix [Instant 10GBPS 4K]',
-                        type: 'direct',
-                        headers: { 'User-Agent': DEFAULT_USER_AGENT },
-                        mimeType: 'video/x-matroska'
-                    }];
+                    quality: qualityHint,
+                    url: finalUrl,
+                    originalUrl: gdFlixUrl,
+                    server: 'GDFlix [Instant 10GBPS 4K]',
+                    type: 'direct',
+                    headers: { 'User-Agent': DEFAULT_USER_AGENT },
+                    mimeType: 'video/x-matroska'
+                }];
             }
         }
         catch {
@@ -855,7 +1044,9 @@ export class Movies4uClient {
     }
     async defaultHttpGet(url, headers, timeoutMs = 10000) {
         const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        const timer = setTimeout(() => {
+            try { controller.abort(); } catch (_) {}
+        }, timeoutMs);
         try {
             const res = await fetch(url, {
                 headers: headers || { 'User-Agent': DEFAULT_USER_AGENT },
@@ -863,10 +1054,16 @@ export class Movies4uClient {
             });
             if (!res.ok)
                 throw new Error(`HTTP ${res.status} fetching ${url}`);
+            const contentType = (res.headers.get('content-type') || '').toLowerCase();
+            if (contentType.includes('video') || contentType.includes('octet-stream') || contentType.includes('audio')) {
+                try { controller.abort(); } catch (_) {}
+                return '';
+            }
             return await res.text();
         }
         finally {
             clearTimeout(timer);
+            try { controller.abort(); } catch (_) {}
         }
     }
 }
