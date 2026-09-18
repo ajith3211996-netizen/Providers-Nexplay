@@ -336,7 +336,32 @@ class ExtensionManagerService {
     episodeNumber = 1,
     originalLanguage = 'en',
     isIndianRegion = false,
-    provider = 'hdhub4u'
+    provider = 'hdhub4u',
+    allowCrossProviderFallback = true
+  }) {
+    return this.findAndResolvePlayableStreamInternal({
+      targetTitle,
+      targetYear,
+      isTVShow,
+      seasonNumber,
+      episodeNumber,
+      originalLanguage,
+      isIndianRegion,
+      provider,
+      allowCrossProviderFallback
+    });
+  }
+
+  async findAndResolvePlayableStreamInternal({
+    targetTitle,
+    targetYear,
+    isTVShow = false,
+    seasonNumber = 1,
+    episodeNumber = 1,
+    originalLanguage = 'en',
+    isIndianRegion = false,
+    provider = 'hdhub4u',
+    allowCrossProviderFallback = true
   }) {
     const cleanTitle = (targetTitle || '')
       .replace(/[:\-–—]/g, ' ')
@@ -347,7 +372,7 @@ class ExtensionManagerService {
     const targetSeason = isTVShow ? parseInt(seasonNumber, 10) : 1;
     const activeProvider = provider || 'hdhub4u';
 
-    console.log(`[ExtensionManager] Strict Single-Provider Resolve on "${activeProvider}" for "${cleanTitle}" (Type: ${isTVShow ? `TV S${targetSeason}E${targetEp}` : 'Movie'})`);
+    console.log(`[ExtensionManager] Resolve on "${activeProvider}" for "${cleanTitle}" (Type: ${isTVShow ? `TV S${targetSeason}E${targetEp}` : 'Movie'})`);
 
     const candidates = await this.findCandidatesMedia({
       provider: activeProvider,
@@ -360,11 +385,33 @@ class ExtensionManagerService {
     });
 
     if (!candidates || candidates.length === 0) {
+      if (allowCrossProviderFallback) {
+        const otherProviders = ['hdhub4u', '4khdhub', 'movies4u'].filter(p => p !== activeProvider);
+        for (const alt of otherProviders) {
+          try {
+            console.log(`[ExtensionManager] Provider ${activeProvider} had no candidates, trying alternative provider: ${alt}`);
+            const res = await this.findAndResolvePlayableStreamInternal({
+              targetTitle: cleanTitle,
+              targetYear,
+              isTVShow,
+              seasonNumber: targetSeason,
+              episodeNumber: targetEp,
+              originalLanguage,
+              isIndianRegion,
+              provider: alt,
+              allowCrossProviderFallback: false
+            });
+            if (res) return res;
+          } catch (_) {}
+        }
+      }
       throw new Error(`No matching media post found for "${cleanTitle}" on ${activeProvider}.`);
     }
 
+    let googleCdnFallback = null;
+
     // Iterate through top candidate matching posts until a live playable stream is resolved
-    for (const c of candidates.slice(0, 4)) {
+    for (const c of candidates.slice(0, 5)) {
       const match = c.match;
       const matchedProvider = c.provider || activeProvider;
       try {
@@ -378,9 +425,9 @@ class ExtensionManagerService {
         );
 
         if (playable && playable.streamUrl) {
-          console.log(`[ExtensionManager] ✅ Successfully resolved playable stream from ${matchedProvider} (${playable.quality || '1080p'})!`);
+          const isGoogleCdn = (playable.streamUrl || '').includes('googleusercontent.com') || (playable.streamUrl || '').includes('video-downloads');
           const serverLabel = matchedProvider === 'movies4u' ? 'Server 3 (Movies4u)' : (matchedProvider === '4khdhub' ? 'Server 2 (4KHDHub)' : 'Server 1 (HDHub4u)');
-          return {
+          const candidateResult = {
             title: match.title,
             streamUrl: playable.streamUrl,
             qualities: playable.qualities || {},
@@ -389,13 +436,55 @@ class ExtensionManagerService {
             },
             mimeType: playable.mimeType || 'video/x-matroska',
             quality: playable.quality || '1080p',
-            server: serverLabel,
+            server: playable.server || serverLabel,
             subtitles: playable.subtitles || []
           };
+
+          // If this is Google CDN (does NOT support HTTP 206 Partial Content), hold it as fallback
+          if (isGoogleCdn) {
+            if (!googleCdnFallback) {
+              googleCdnFallback = candidateResult;
+            }
+            continue;
+          }
+
+          console.log(`[ExtensionManager] ✅ Successfully resolved playable stream from ${matchedProvider} (${playable.quality || '1080p'}) [${candidateResult.server}]!`);
+          return candidateResult;
         }
       } catch (err) {
         console.warn(`[ExtensionManager] Candidate post resolution error on ${matchedProvider}:`, err?.message || err);
       }
+    }
+
+    // If only Google CDN was found on this provider, check other providers for FSL / FSLv2 / Pixeldrain / Watch Online first!
+    if (allowCrossProviderFallback) {
+      const otherProviders = ['hdhub4u', '4khdhub', 'movies4u'].filter(p => p !== activeProvider);
+      for (const alt of otherProviders) {
+        try {
+          console.log(`[ExtensionManager] Checking alternative provider ${alt} for non-Google CDN stream...`);
+          const altResult = await this.findAndResolvePlayableStreamInternal({
+            targetTitle: cleanTitle,
+            targetYear,
+            isTVShow,
+            seasonNumber: targetSeason,
+            episodeNumber: targetEp,
+            originalLanguage,
+            isIndianRegion,
+            provider: alt,
+            allowCrossProviderFallback: false
+          });
+          if (altResult && !altResult.streamUrl.includes('googleusercontent.com') && !altResult.streamUrl.includes('video-downloads')) {
+            console.log(`[ExtensionManager] ✅ Alternative provider ${alt} resolved range-supporting stream: [${altResult.server}]!`);
+            return altResult;
+          }
+        } catch (_) {}
+      }
+    }
+
+    // Only if all providers lack FSL / FSLv2 / Pixeldrain / Watch Online, return Google CDN as absolute last resort
+    if (googleCdnFallback) {
+      console.log(`[ExtensionManager] ⚠️ Across providers, only Google CDN is available. Returning as last resort: [${googleCdnFallback.server}]`);
+      return googleCdnFallback;
     }
 
     throw new Error(`Could not resolve direct stream for "${cleanTitle}" on ${activeProvider}.`);

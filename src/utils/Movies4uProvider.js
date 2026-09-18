@@ -433,12 +433,12 @@ export class Movies4uClient {
                 ...(details.streamingLinks || []),
                 ...(details.downloadLinks || [])
             ];
-            // Prioritize M4UPlay (Adaptive HLS) -> 4K/UHD -> 1080p -> 720p
+            // Prioritize HubCloud bridges -> 4K/UHD -> 1080p -> M4UPlay Embed -> 720p
             candidates.sort((a, b) => {
-                const aM4u = (a.server || '').includes('M4UPlay') || (a.url || '').includes('m4uplay');
-                const bM4u = (b.server || '').includes('M4UPlay') || (b.url || '').includes('m4uplay');
-                if (aM4u && !bM4u) return -1;
-                if (!aM4u && bM4u) return 1;
+                const aHub = (a.server || '').toLowerCase().includes('hubcloud') || (a.server || '').toLowerCase().includes('fsl') || (a.url || '').toLowerCase().includes('hubcloud') || (a.url || '').toLowerCase().includes('gamerxyt') || (a.url || '').toLowerCase().includes('hubdrive');
+                const bHub = (b.server || '').toLowerCase().includes('hubcloud') || (b.server || '').toLowerCase().includes('fsl') || (b.url || '').toLowerCase().includes('hubcloud') || (b.url || '').toLowerCase().includes('gamerxyt') || (b.url || '').toLowerCase().includes('hubdrive');
+                if (aHub && !bHub) return -1;
+                if (!aHub && bHub) return 1;
                 const a4K = /\b(2160p|4k|uhd)\b/i.test(`${a.quality || ''} ${a.server || ''}`);
                 const b4K = /\b(2160p|4k|uhd)\b/i.test(`${b.quality || ''} ${b.server || ''}`);
                 if (a4K && !b4K) return -1;
@@ -446,17 +446,25 @@ export class Movies4uClient {
                 return 0;
             });
 
+            let googleCdnFallback = null;
             for (const candidate of candidates) {
                 try {
                     const qHint = candidate.quality || details.quality || '1080p';
                     const resolved = await this.resolveStream(candidate.url, qHint, fetcher);
                     if (resolved.length > 0) {
                         for (const primary of resolved) {
+                            const isGoogle = primary.url && (primary.url.includes('googleusercontent.com') || primary.url.includes('video-downloads'));
                             const isLive = await this.verifyMediaStream(primary.url, primary.headers);
                             if (isLive) {
                                 const qKey = (primary.quality || qHint || '').toLowerCase().includes('4k') || (primary.quality || qHint || '').includes('2160') 
                                     ? '4k' 
                                     : ((primary.quality || qHint || '').includes('720') ? '720p' : '1080p');
+                                if (isGoogle) {
+                                    if (!googleCdnFallback) {
+                                        googleCdnFallback = { primary, qKey };
+                                    }
+                                    continue;
+                                }
                                 if (!qualities[qKey]) {
                                     qualities[qKey] = primary.url;
                                 }
@@ -470,6 +478,11 @@ export class Movies4uClient {
                     }
                 } catch (e) {}
                 if ((qualities['4k'] && qualities['1080p']) || Object.keys(qualities).length >= 2 || qualities['1080p'] || qualities['4k']) break;
+            }
+
+            if (Object.keys(qualities).length === 0 && googleCdnFallback) {
+                qualities[googleCdnFallback.qKey] = googleCdnFallback.primary.url;
+                primaryServer = googleCdnFallback.primary.server || 'Download [Server : 10Gbps] (Google CDN Stream - No 206 Partial Content)';
             }
 
             const primaryUrl = qualities['4k'] || qualities['2160p'] || qualities['1080p'] || qualities['720p'] || Object.values(qualities)[0];
@@ -496,6 +509,7 @@ export class Movies4uClient {
             const sortedBridges = season && season.qualityBridges.length > 0 ? sortBridgesByFidelity(season.qualityBridges) : [];
             const qualities = {};
             let primaryResult = null;
+            let googleCdnSeriesFallback = null;
 
             // Iterate across candidate bridges in fidelity order (1080p / 4K / 720p)
             for (const bridge of sortedBridges) {
@@ -508,9 +522,20 @@ export class Movies4uClient {
                                 const resolved = await this.resolveStream(l.url, bridge.quality || '1080p', fetcher);
                                 if (resolved.length > 0) {
                                     for (const candidateStream of resolved) {
+                                        const isGoogle = candidateStream.url && (candidateStream.url.includes('googleusercontent.com') || candidateStream.url.includes('video-downloads'));
                                         const isLive = await this.verifyMediaStream(candidateStream.url, candidateStream.headers);
                                         if (isLive) {
                                             const qKey = (bridge.quality || '').toLowerCase().includes('4k') || (bridge.quality || '').includes('2160') ? '4k' : ((bridge.quality || '').includes('1080') ? '1080p' : ((bridge.quality || '').includes('720') ? '720p' : '1080p'));
+                                            if (isGoogle) {
+                                                if (!googleCdnSeriesFallback) {
+                                                    googleCdnSeriesFallback = {
+                                                        candidateStream,
+                                                        qKey,
+                                                        ep
+                                                    };
+                                                }
+                                                continue;
+                                            }
                                             if (!qualities[qKey]) {
                                                 qualities[qKey] = candidateStream.url;
                                             }
@@ -539,6 +564,23 @@ export class Movies4uClient {
                     }
                 } catch (bErr) {}
                 if (qualities['4k'] && qualities['1080p']) break;
+            }
+
+            if (!primaryResult && googleCdnSeriesFallback) {
+                const fb = googleCdnSeriesFallback;
+                qualities[fb.qKey] = fb.candidateStream.url;
+                primaryResult = {
+                    title: `${details.title} - S${seasonNumber}E${fb.ep.episodeNumber}`,
+                    mediaType: 'series',
+                    seasonNumber,
+                    episodeNumber: fb.ep.episodeNumber,
+                    streamUrl: fb.candidateStream.url,
+                    headers: fb.candidateStream.headers || { 'User-Agent': DEFAULT_USER_AGENT },
+                    mimeType: fb.candidateStream.mimeType || 'video/mp4',
+                    quality: fb.qKey === '4k' ? '4K' : (fb.qKey === '1080p' ? '1080p' : fb.qKey),
+                    server: fb.candidateStream.server || 'Download [Server : 10Gbps] (Google CDN Stream - No 206 Partial Content)',
+                    thumbnail: details.thumbnail
+                };
             }
 
             if (primaryResult) {
@@ -756,59 +798,86 @@ export class Movies4uClient {
                     continue;
                 }
 
-                // 1. Google CDN / GPDL / 10Gbps Stream
-                // 1. Cloudflare R2 Direct Stream (10Gbps, Instant Range Seek)
-                if (href.includes('r2.cloudflarestorage.com') || href.includes('r2.dev')) {
+                // 1. [Download FSL server] (Cloudflare R2 Direct Stream) - Priority 1 (Instant Range Seeking)
+                if (href.includes('r2.cloudflarestorage.com') || href.includes('r2.dev') || lowerLabel.includes('fsl server') || lowerLabel.includes('fsl 4k')) {
                     results.push({
                         quality: qualityHint,
                         url: href,
                         originalUrl: hubUrl,
-                        server: 'Download [FSL 4K Server] (Cloudflare R2 Direct Stream)',
+                        server: 'Download [FSL Server] (10Gbps Cloudflare R2 Direct)',
                         type: 'direct',
                         headers: { 'User-Agent': DEFAULT_USER_AGENT },
-                        mimeType: 'video/x-matroska'
+                        mimeType: 'video/x-matroska',
+                        priority: 1
                     });
                 }
-                // 2. FastDL / Bunker / Valentine / Lenin CDN (High-Speed Direct)
-                else if (href.includes('fastdl') || href.includes('bunker.monster') || href.includes('valentine.guru') || href.includes('cdn.lenin.buzz') || (href.includes('.mkv') && href.includes('token='))) {
+                // 2. [Download FSL v2 server] (FastDL / Bunker / Valentine / Lenin CDN) - Priority 2 (Instant Range Seeking)
+                else if (href.includes('fastdl') || href.includes('fsl.') || href.includes('bunker.monster') || href.includes('valentine.guru') || href.includes('cdn.lenin.buzz') || lowerLabel.includes('fastdl') || lowerLabel.includes('fslv2') || lowerLabel.includes('fsl v2')) {
                     results.push({
                         quality: qualityHint,
                         url: href,
                         originalUrl: hubUrl,
-                        server: 'Download [FastDL] (Direct High-Speed Stream)',
+                        server: 'Download [FSL v2 server] (Fast CDN Direct Stream)',
                         type: 'direct',
                         headers: { 'User-Agent': DEFAULT_USER_AGENT },
-                        mimeType: 'video/x-matroska'
+                        mimeType: 'video/x-matroska',
+                        priority: 2
                     });
                 }
-                // 3. Cloudflare Worker Stream (.workers.dev)
+                // 3. pixeldrain (PixelDrain Direct CDN Stream) - Priority 3 (Instant Range Seeking)
+                else if (lowerHref.includes('pixeld') || lowerLabel.includes('pixel')) {
+                    let fileId = (href.includes('/u/') ? href.split('/u/')[1] : href.split('/api/file/')[1])?.split('?')[0]?.replace(/\/+$/, '');
+                    if (!fileId || fileId === 'negn6f') {
+                        const pxlMatch = html.match(/var\s+pxl\s*=\s*['"]([^'"]+)['"];?/i);
+                        if (pxlMatch && pxlMatch[1]) {
+                            fileId = pxlMatch[1].split('/u/')[1]?.split('?')[0]?.replace(/\/+$/, '');
+                        }
+                    }
+                    if (fileId && fileId !== 'negn6f' && fileId.length >= 6) {
+                        const pxlUrl = `https://pixeldrain.dev/api/file/${fileId}`;
+                        if (!results.some(r => r.url === pxlUrl)) {
+                            results.push({
+                                quality: qualityHint,
+                                url: pxlUrl,
+                                originalUrl: hubUrl,
+                                server: 'Download [PixelServer] (PixelDrain Direct CDN Stream)',
+                                type: 'direct',
+                                headers: { 'User-Agent': DEFAULT_USER_AGENT },
+                                mimeType: 'video/x-matroska',
+                                priority: 3
+                            });
+                        }
+                    }
+                }
+                // 4. Watch Online streaming link - Priority 4
+                else if (lowerHref.includes('hdstream4u') || lowerHref.includes('hubstream') || lowerHref.includes('m4uplay') || lowerLabel.includes('watch online')) {
+                    if (href.startsWith('http') && !lowerHref.includes('winexch') && !lowerHref.includes('snvhost') && !lowerHref.includes('tutorial')) {
+                        results.push({
+                            quality: qualityHint,
+                            url: href,
+                            originalUrl: hubUrl,
+                            server: 'Watch Online (High-Speed Stream)',
+                            type: 'hls',
+                            headers: { 'User-Agent': DEFAULT_USER_AGENT },
+                            mimeType: 'application/x-mpegURL',
+                            priority: 4
+                        });
+                    }
+                }
+                // 5. Cloudflare Worker Stream (.workers.dev)
                 else if (href.includes('workers.dev') && !href.includes('/?id=')) {
                     results.push({
                         quality: qualityHint,
                         url: href,
                         originalUrl: hubUrl,
-                        server: 'Download [Server : 10Gbps 4K] (Direct Cloudflare Worker Stream)',
+                        server: 'Download File (Cloudflare Worker Stream)',
                         type: 'direct',
                         headers: { 'User-Agent': DEFAULT_USER_AGENT, 'Referer': 'https://gamerxyt.com/' },
-                        mimeType: 'video/x-matroska'
+                        mimeType: 'video/x-matroska',
+                        priority: 5
                     });
                 }
-                // 4. PixelDrain Direct File API (Skip dead negn6f files)
-                else if ((href.includes('pixeldrain.dev/u/') || href.includes('pixeldrain.com/u/')) && !href.includes('negn6f')) {
-                    const fileId = href.split('/u/')[1]?.split('?')[0]?.replace(/\/+$/, '');
-                    if (fileId && fileId !== 'negn6f') {
-                        results.push({
-                            quality: qualityHint,
-                            url: `https://pixeldrain.com/api/file/${fileId}`,
-                            originalUrl: hubUrl,
-                            server: 'Download [PixelServer] (PixelDrain Direct)',
-                            type: 'direct',
-                            headers: { 'User-Agent': DEFAULT_USER_AGENT },
-                            mimeType: 'video/x-matroska'
-                        });
-                    }
-                }
-                // 5. Fallback: Google CDN Direct Stream
+                // 6. Direct Google CDN / GPDL / 10Gbps Server - Strict Last Resort (Priority 99, No 206 Partial Content)
                 else if (
                     lowerHref.includes('googleusercontent.com') ||
                     lowerHref.includes('video-downloads') ||
@@ -829,14 +898,38 @@ export class Movies4uClient {
                             quality: qualityHint,
                             url: directCdn,
                             originalUrl: hubUrl,
-                            server: 'Download [Server : 10Gbps] (Google CDN Direct Stream)',
+                            server: 'Download [Server : 10Gbps] (Google CDN Stream - No 206 Partial Content)',
                             type: 'direct',
                             headers: { 'User-Agent': DEFAULT_USER_AGENT },
-                            mimeType: 'video/mp4'
+                            mimeType: 'video/mp4',
+                            priority: 99
                         });
                     }
                 }
             }
+
+            // Check dynamic script var pxl if Pixeldrain not yet added
+            if (!results.some(r => r.url.includes('pixeldrain'))) {
+                const pxlMatch = html.match(/var\s+pxl\s*=\s*['"]([^'"]+)['"];?/i);
+                if (pxlMatch && pxlMatch[1]) {
+                    const clean = pxlMatch[1].replace(/[?&]download.*$/i, '').trim();
+                    const fileId = clean.split('/u/')[1]?.split('?')[0]?.replace(/\/+$/, '') || clean.split('/').pop()?.split('?')[0];
+                    if (fileId && fileId !== 'negn6f' && fileId.length >= 6) {
+                        results.push({
+                            quality: qualityHint,
+                            url: `https://pixeldrain.dev/api/file/${fileId}`,
+                            originalUrl: hubUrl,
+                            server: 'Download [PixelServer] (PixelDrain Direct CDN Stream)',
+                            type: 'direct',
+                            headers: { 'User-Agent': DEFAULT_USER_AGENT },
+                            mimeType: 'video/x-matroska',
+                            priority: 3
+                        });
+                    }
+                }
+            }
+
+            results.sort((a, b) => (a.priority || 50) - (b.priority || 50));
         }
         catch {
             // ignore

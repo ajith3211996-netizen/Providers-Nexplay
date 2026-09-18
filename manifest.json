@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "version": "1.0.1",
-  "updatedAt": "2026-09-18T14:47:05.525Z",
-  "commitSha": "63901b6",
+  "version": "1.0.2",
+  "updatedAt": "2026-09-18T18:18:01.940Z",
+  "commitSha": "77be7d8",
   "name": "NexPlay Providers Configuration",
   "description": "Dynamic Over-The-Air scraper and provider definitions for NexPlay & Stitch-Nexplay",
   "providers": {
@@ -85,7 +85,8 @@
     ]
   },
   "changeLog": [
-    "Initial dynamic OTA manifest setup for NexPlay",
-    "Multi-server direct 10Gbps stream resolution configuration"
+    "Deprioritize 10Gbps Google CDN (no HTTP 206 partial content range support) and prioritize FSL -> FSLv2 -> Pixeldrain -> Watch Online across all providers",
+    "Multi-server direct 10Gbps stream resolution configuration",
+    "Initial dynamic OTA manifest setup for NexPlay"
   ]
 }
