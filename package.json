@@ -14,7 +14,9 @@
     "test:servers": "node tests/test_servers.mjs",
     "test:s1-s2": "node tests/test_s1_s2.mjs",
     "test:m4u": "node tests/test_m4u.mjs",
-    "sync": "powershell -ExecutionPolicy Bypass -File ./sync_from_app.ps1",
+    "sync": "powershell -ExecutionPolicy Bypass -File ./sync_two_way.ps1",
+    "sync:two-way": "powershell -ExecutionPolicy Bypass -File ./sync_two_way.ps1",
+    "sync:to-app": "powershell -ExecutionPolicy Bypass -File ./sync_to_app.ps1",
     "sync:from-stitch": "powershell -ExecutionPolicy Bypass -File ./sync_from_app.ps1"
   },
   "keywords": [
