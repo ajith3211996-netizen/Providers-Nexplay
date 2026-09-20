@@ -1,6 +1,6 @@
 {
   "name": "providers-nexplay",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "High-Speed Native Scraper Engine & Stream Resolvers for NexPlay (HDHub4u, 4KHDHub, Movies4u)",
   "type": "module",
   "main": "index.mjs",
