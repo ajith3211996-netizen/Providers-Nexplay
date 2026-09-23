@@ -1,5 +1,5 @@
+import { Movies4u } from './Movies4uProvider.js';
 import { 
-  Movies4u,
   HDHub4u, 
   FourKHDHub, 
   UniversalScraper, 
@@ -434,10 +434,9 @@ class ExtensionManagerService {
         );
 
         if (playable && playable.streamUrl) {
-          const isGoogleCdn = (playable.streamUrl || '').includes('googleusercontent.com') || (playable.streamUrl || '').includes('video-downloads');
+          const isGoogleCdn = (playable.streamUrl || '').includes('googleusercontent.com') || (playable.streamUrl || '').includes('video-downloads') || (playable.streamUrl || '').includes('gpdl');
           if (isGoogleCdn) {
-            console.log(`[ExtensionManager] ⚠️ Strictly rejecting Google CDN stream from ${matchedProvider}`);
-            continue;
+            console.log(`[ExtensionManager] Utilizing [Server:10Gbps] Google CDN fallback stream from ${matchedProvider}`);
           }
           const supports206 = playable.supports206 ?? true;
           const serverLabel = matchedProvider === 'movies4u' ? 'Server 3 (Movies4u)' : (matchedProvider === '4khdhub' ? 'Server 2 (4KHDHub)' : 'Server 1 (HDHub4u)');

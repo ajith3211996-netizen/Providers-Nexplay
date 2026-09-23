@@ -566,19 +566,22 @@ var ClientUtils = class {
   static getStreamPriority(url, serverLabel = '') {
     const u = (url || '').toLowerCase();
     const s = (serverLabel || '').toLowerCase();
-    // 1. [Download FSL server] (Cloudflare R2 Direct)
+    // 1. [Download FSL server] (Cloudflare R2 Direct) - Primary streaming link
     if (u.includes('r2.cloudflarestorage.com') || u.includes('r2.dev') || s.includes('fsl server') || s.includes('fsl 4k') || s.includes('fsl 1080p') || s.includes('fsl direct')) {
       return 1;
     }
-    // 2. [Download FSL v2 server] (FastDL / Bunker / Valentine / Lenin CDN / Pongala)
+    // 2. [Download FSL v2 server] (FastDL / Bunker / Valentine / Lenin CDN / Pongala) - Second streaming link
     if (u.includes('fastdl') || u.includes('bunker.monster') || u.includes('valentine.guru') || u.includes('pongala.life') || u.includes('lenin.buzz') || s.includes('fslv2') || s.includes('fsl v2')) {
       return 2;
     }
-    // 3. pixeldrain (PixelDrain Direct CDN Stream)
+    // 3. pixeldrain (PixelDrain Direct CDN Stream) - Third streaming link if FSL / FSLv2 not available
     if (u.includes('pixeldrain.dev/api/file') || u.includes('pixeldrain.com/api/file') || s.includes('pixel') || s.includes('pixeldrain')) {
       return 3;
     }
-    // All other servers strictly rejected
+    // 4. [server:10gbps] (Google CDN) - Ultimate fallback if top 3 not available (does not support 206)
+    if (u.includes('googleusercontent.com') || u.includes('video-downloads') || u.includes('gpdl') || s.includes('10gbps') || s.includes('google cdn')) {
+      return 10;
+    }
     return 999;
   }
 
@@ -594,46 +597,52 @@ var ClientUtils = class {
 
   static selectBestStreamCandidate(candidateStreams) {
     if (!Array.isArray(candidateStreams) || candidateStreams.length === 0) return null;
-    const filtered = candidateStreams.filter(c => {
+
+    // First: Filter verified HTTP 206 Partial Content streams from top 3: FSL (1) -> FSLv2 (2) -> Pixeldrain (3)
+    const top3Candidates = candidateStreams.filter(c => {
       if (!c || !c.url) return false;
-      const u = c.url.toLowerCase();
-      const s = (c.server || '').toLowerCase();
-
-      // USER REQUIREMENT: Use ONLY [download fsl server], [download fsl v2 server], and pixeldrain
-      const isFsl = s.includes('fsl server') || u.includes('r2.cloudflarestorage.com') || u.includes('r2.dev');
-      const isFslV2 = s.includes('fslv2') || s.includes('fsl v2') || u.includes('fastdl') || u.includes('bunker.monster') || u.includes('valentine.guru') || u.includes('pongala.life') || u.includes('lenin.buzz');
-      const isPixel = s.includes('pixel') || u.includes('pixeldrain.com') || u.includes('pixeldrain.dev');
-
-      if (!isFsl && !isFslV2 && !isPixel) {
-        return false;
-      }
-
-      if (u.includes('googleusercontent.com') || u.includes('video-downloads') || s.includes('server : 10gbps') || s.includes('google cdn')) {
-        return false;
-      }
-
-      // Strictly only accept streams confirmed to support HTTP 206 Partial Content
-      return c.supports206 === true;
+      const prio = c.priority ?? this.getStreamPriority(c.url, c.server);
+      return prio <= 3 && c.supports206 === true;
     });
-    if (filtered.length === 0) return null;
-    const sorted = [...filtered].sort((a, b) => {
-      const aIs1080 = (a.quality || a.q || '').toLowerCase().includes('1080');
-      const bIs1080 = (b.quality || b.q || '').toLowerCase().includes('1080');
-      const prioA = a.priority ?? this.getStreamPriority(a.url, a.server);
-      const prioB = b.priority ?? this.getStreamPriority(b.url, b.server);
 
-      // When both are verified high-speed streams (priority <= 3), prefer 1080p for default playback
-      if (prioA <= 3 && prioB <= 3) {
+    if (top3Candidates.length > 0) {
+      top3Candidates.sort((a, b) => {
+        const prioA = a.priority ?? this.getStreamPriority(a.url, a.server);
+        const prioB = b.priority ?? this.getStreamPriority(b.url, b.server);
+        if (prioA !== prioB) {
+          return prioA - prioB; // 1 (FSL) < 2 (FSLv2) < 3 (Pixeldrain)
+        }
+        const aIs1080 = (a.quality || a.q || '').toLowerCase().includes('1080');
+        const bIs1080 = (b.quality || b.q || '').toLowerCase().includes('1080');
         if (aIs1080 && !bIs1080) return -1;
         if (!aIs1080 && bIs1080) return 1;
-      }
+        return this.getQualityWeight(b.quality || b.q) - this.getQualityWeight(a.quality || a.q);
+      });
+      return top3Candidates[0];
+    }
 
-      if (prioA !== prioB) {
-        return prioA - prioB; // 1 (FSL) < 2 (FSLv2) < 3 (Pixeldrain)
-      }
-      return this.getQualityWeight(b.quality || b.q) - this.getQualityWeight(a.quality || a.q);
+    // Fallback: If above all three streaming links are NOT available or none support 206,
+    // move to [server:10gbps] which holds google cdn and does not support 206 partial content
+    const fallbackCandidates = candidateStreams.filter(c => {
+      if (!c || !c.url) return false;
+      const prio = c.priority ?? this.getStreamPriority(c.url, c.server);
+      const u = c.url.toLowerCase();
+      const s = (c.server || '').toLowerCase();
+      return (prio === 10 || u.includes('googleusercontent.com') || u.includes('video-downloads') || u.includes('gpdl') || s.includes('10gbps') || s.includes('google cdn'));
     });
-    return sorted[0];
+
+    if (fallbackCandidates.length > 0) {
+      fallbackCandidates.sort((a, b) => {
+        const aIs1080 = (a.quality || a.q || '').toLowerCase().includes('1080');
+        const bIs1080 = (b.quality || b.q || '').toLowerCase().includes('1080');
+        if (aIs1080 && !bIs1080) return -1;
+        if (!aIs1080 && bIs1080) return 1;
+        return this.getQualityWeight(b.quality || b.q) - this.getQualityWeight(a.quality || a.q);
+      });
+      return fallbackCandidates[0];
+    }
+
+    return candidateStreams[0] || null;
   }
 
   /**
@@ -641,13 +650,13 @@ var ClientUtils = class {
    */
   static async verifyMediaStream(streamUrl, headers = {}, timeoutMs = 3500) {
     if (!streamUrl || !streamUrl.startsWith("http")) return { isLive: false, supports206: false };
-    if (streamUrl.includes("googleusercontent.com") || streamUrl.includes("video-downloads")) {
-      return { isLive: false, supports206: false };
-    }
     let controller = null;
     let timeoutId = null;
     try {
       const safeUrl = this.sanitizeStreamUrl(streamUrl);
+      const isGoogleCdn = safeUrl.includes("googleusercontent.com") || 
+                          safeUrl.includes("video-downloads") || 
+                          safeUrl.includes("gpdl");
       const isHls = safeUrl.toLowerCase().includes('.m3u8');
       if (typeof AbortController !== "undefined") {
         controller = new AbortController();
@@ -682,10 +691,14 @@ var ClientUtils = class {
         return { isLive: false, supports206: false };
       }
 
-      // USER REQUIREMENT: Even 200 OK links MUST be strictly ignored and rejected because they do not support range seeking!
-      if (!isHls && status === 200) {
-        return { isLive: false, supports206: false };
+      // Google CDN fallback check: Does NOT support HTTP 206 Partial Content,
+      // but is acceptable as ultimate fallback if top 3 are not available
+      if (isGoogleCdn) {
+        return { isLive: status >= 200 && status < 400, supports206: false, status, contentType, isGoogleCdn: true };
       }
+
+      // For top 3 streaming links (FSL, FSLv2, Pixeldrain):
+      // Strictly verify that it is working AND supports HTTP 206 Partial Content
       if (!isHls && status !== 206) {
         return { isLive: false, supports206: false };
       }
@@ -725,18 +738,31 @@ var ClientUtils = class {
   static async selectFirstLiveStream(candidateList, headers = {}, fallbackQuality = "1080p") {
     if (!Array.isArray(candidateList) || candidateList.length === 0) return null;
     const sorted = [...candidateList]
-      .filter(c => c && c.url && !c.url.includes('googleusercontent.com') && !c.url.includes('video-downloads'))
+      .filter(c => c && c.url)
       .sort((a, b) => (a.priority || 50) - (b.priority || 50));
     
-    // Only return live streams that strictly support HTTP 206 Partial Content (200 OK links ignored)
+    // 1. Primary: Only return live streams that strictly support HTTP 206 Partial Content from top 3 (FSL -> FSLv2 -> Pixeldrain)
     for (const item of sorted) {
-      if (item && item.url && (item.priority || 50) < 90) {
+      if (item && item.url && (item.priority || 50) <= 3) {
         const streamHeaders = item.headers || headers;
         const check = await this.verifyMediaStream(item.url, streamHeaders, 4000);
         if (check.isLive && check.supports206) {
           const detectedQ = this.detectQualityFromUrl(item.url, fallbackQuality);
           const safeUrl = this.sanitizeStreamUrl(item.url);
           return { q: detectedQ, url: safeUrl, item: { ...item, url: safeUrl, supports206: true } };
+        }
+      }
+    }
+
+    // 2. Fallback: If above all three streaming links not available, move to [server:10gbps] which holds google cdn and does not support 206
+    for (const item of sorted) {
+      if (item && item.url && ((item.priority || 50) === 10 || item.server?.toLowerCase().includes('10gbps') || item.server?.toLowerCase().includes('google cdn') || item.url.includes('googleusercontent.com') || item.url.includes('video-downloads') || item.url.includes('gpdl'))) {
+        const streamHeaders = item.headers || headers;
+        const check = await this.verifyMediaStream(item.url, streamHeaders, 4000);
+        if (check.isLive) {
+          const detectedQ = this.detectQualityFromUrl(item.url, fallbackQuality);
+          const safeUrl = this.sanitizeStreamUrl(item.url);
+          return { q: detectedQ, url: safeUrl, item: { ...item, url: safeUrl, supports206: false, isGoogleCdn: true } };
         }
       }
     }
@@ -992,23 +1018,8 @@ var ClientUtils = class {
         if (!link || link.startsWith('#') || link.includes('google.com/search') || link.includes('tinyurl') || link.includes('t.me') || link.includes('one.one.one') || link.includes('snvhost')) continue;
         if (link.includes('.zip') || link.includes('.rar') || text.includes('.zip') || text.includes('batch')) continue;
 
-        // Strictly ignore Server : 10Gbps / Google CDN / googleusercontent links across all servers
-        const lowerLink = link.toLowerCase();
-        const lowerText = text.toLowerCase();
-        if (
-          lowerText.includes('server : 10gbps') ||
-          lowerText.includes('server: 10gbps') ||
-          (lowerText.includes('10gbps') && !lowerText.includes('fsl') && !lowerText.includes('r2')) ||
-          lowerText.includes('google cdn') ||
-          lowerLink.includes('googleusercontent.com') ||
-          lowerLink.includes('video-downloads') ||
-          lowerLink.includes('gpdl')
-        ) {
-          continue;
-        }
-
-        // 1. [Download FSL server] (Cloudflare R2 Direct) - Priority 1 (Instant Range Seeking)
-        if (link.includes('cloudflarestorage') || link.includes('r2.dev') || text.includes('FSL Server') || text.includes('FSL 4K')) {
+        // 1. [Download FSL server] (Cloudflare R2 Direct) - Priority 1 (Primary Streaming Link)
+        if (link.includes('cloudflarestorage') || link.includes('r2.dev') || text.includes('FSL Server') || text.includes('FSL 4K') || text.includes('FSL 1080p') || text.includes('FSL Direct')) {
           streamLinks.push({
             server: "Download [FSL Server] (10Gbps Cloudflare R2 Direct)",
             url: link,
@@ -1020,7 +1031,7 @@ var ClientUtils = class {
             priority: 1
           });
         }
-        // 2. [Download FSL v2 server] (FastDL / FSLv2 / Lenin CDN / Bunker / Valentine) - Priority 2 (Instant Range Seeking)
+        // 2. [Download FSL v2 server] (FastDL / FSLv2 / Lenin CDN / Bunker / Valentine) - Priority 2 (Second Streaming Link)
         else if (link.includes('fastdl') || link.includes('fsl.') || link.includes('bunker.monster') || link.includes('valentine.guru') || link.includes('pongala.life') || link.includes('lenin.buzz') || text.includes('FastDL') || text.includes('FSLv2') || text.includes('FSL v2') || text.includes('FSL Server v2')) {
           streamLinks.push({
             server: "Download [FSL v2 server] (Fast CDN Direct Stream)",
@@ -1033,7 +1044,7 @@ var ClientUtils = class {
             priority: 2
           });
         }
-        // 3. pixeldrain (PixelDrain Direct CDN Stream) - Priority 3 (Instant Range Seeking)
+        // 3. pixeldrain (PixelDrain Direct CDN Stream) - Priority 3 (Third Streaming Link if FSL / FSLv2 not available)
         else if (link.includes('pixeld') || text.toLowerCase().includes('pixel')) {
           let cleanPixelUrl = '';
           const redirected = this.getRedirectedPixelDrainUrl(vcloudText, hubcloudText, hubdriveText);
@@ -1063,7 +1074,27 @@ var ClientUtils = class {
             }
           }
         }
-        /* Non-FSL / non-Pixel servers eliminated per user requirement */
+        // 4. [server:10gbps] (Google CDN Stream) - Priority 10 (Fallback if top 3 not available)
+        else if (
+          lowerText.includes('server : 10gbps') ||
+          lowerText.includes('server: 10gbps') ||
+          (lowerText.includes('10gbps') && !lowerText.includes('fsl') && !lowerText.includes('r2')) ||
+          lowerText.includes('google cdn') ||
+          lowerLink.includes('googleusercontent.com') ||
+          lowerLink.includes('video-downloads') ||
+          lowerLink.includes('gpdl')
+        ) {
+          streamLinks.push({
+            server: "Download [Server : 10Gbps] (Google CDN Stream)",
+            url: link,
+            quality: qualityHint,
+            originalUrl: startUrl,
+            type: "direct",
+            headers: defaultHeaders,
+            mimeType: this.detectMimeType(link),
+            priority: 10
+          });
+        }
       }
 
       // Explicit check for Pixeldrain in scripts/HTML if not captured during anchor loop
