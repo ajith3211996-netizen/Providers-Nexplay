@@ -2,14 +2,38 @@
   "major": 1,
   "minor": 0,
   "patch": 8,
-  "issue": 2,
-  "build": 109,
+  "issue": 6,
+  "build": 113,
   "updateType": "bugfix",
   "timestamp": "20260924",
-  "versionName": "1.0.8.2.109-bugfix.20260924",
-  "versionCode": 1080109,
-  "lastSuccessfulBuild": "2026-09-24T15:03:36.273Z",
+  "versionName": "1.0.8.6.113-bugfix.20260924",
+  "versionCode": 1080113,
+  "lastSuccessfulBuild": "2026-09-24T15:48:55.357Z",
   "history": [
+    {
+      "versionName": "1.0.8.6.113-bugfix.20260924",
+      "versionCode": 1080113,
+      "updateType": "bugfix",
+      "build": 113,
+      "note": "Debug build with seek diagnostics and standalone bundle",
+      "builtAt": "2026-09-24T15:48:55.357Z"
+    },
+    {
+      "versionName": "1.0.8.4.111-bugfix.20260924",
+      "versionCode": 1080111,
+      "updateType": "bugfix",
+      "build": 111,
+      "note": "Compiled expo-video from source with Media3 seek logging",
+      "builtAt": "2026-09-24T15:33:30.513Z"
+    },
+    {
+      "versionName": "1.0.8.3.110-bugfix.20260924",
+      "versionCode": 1080110,
+      "updateType": "bugfix",
+      "build": 110,
+      "note": "Injected Media3 seek diagnostic logging",
+      "builtAt": "2026-09-24T15:23:34.922Z"
+    },
     {
       "versionName": "1.0.8.2.109-bugfix.20260924",
       "versionCode": 1080109,

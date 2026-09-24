@@ -8,7 +8,10 @@ param (
     [ValidateSet('bug', 'bugfix', 'issue', 'patch', 'minor', 'major', 'build')]
     [string]$UpdateType = 'bug',
 
-    [string]$Note = "Resolved Server 1/2 scrapers and keyframe seeking across all servers",
+    [string]$Note = "Debug build with seek diagnostics",
+
+    [ValidateSet('debug', 'release')]
+    [string]$BuildType = 'debug',
 
     [switch]$SkipInstall = $false,
     [switch]$NoLaunch = $false
@@ -59,7 +62,10 @@ Write-Host "Staged Version Code: $stagedVersionCode" -ForegroundColor Green
 Write-Host ""
 
 # Step 2: Compile the 3 APKs via Gradle
-Write-Host "--- [2/4] Compiling 3 APK Architectures (Release) ---" -ForegroundColor Cyan
+$buildTypeCap = (Get-Culture).TextInfo.ToTitleCase($BuildType.ToLower())
+$buildTypeLower = $BuildType.ToLower()
+
+Write-Host "--- [2/4] Compiling 3 APK Architectures ($buildTypeCap) ---" -ForegroundColor Cyan
 Write-Host "1. Universal APK (All ABIs combined)" -ForegroundColor Yellow
 Write-Host "2. 32-bit APK   (armeabi-v7a)" -ForegroundColor Yellow
 Write-Host "3. 64-bit APK   (arm64-v8a)" -ForegroundColor Yellow
@@ -73,10 +79,10 @@ $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
 try {
     Push-Location $androidDir
-    Write-Host "Running: .\gradlew.bat assembleRelease in $androidDir..." -ForegroundColor DarkCyan
+    Write-Host "Running: .\gradlew.bat assemble$buildTypeCap in $androidDir..." -ForegroundColor DarkCyan
     
-    # Run gradlew assembleRelease
-    & $gradlewBat assembleRelease
+    # Run gradlew assembleDebug or assembleRelease
+    & $gradlewBat "assemble$buildTypeCap"
     if ($LASTEXITCODE -eq 0) {
         $buildSuccess = $true
     } else {
@@ -105,13 +111,13 @@ if ($buildSuccess) {
     }
 
     # Verify the 3 compiled APKs
-    $apkDir = Join-Path $androidDir "app\build\outputs\apk\release"
-    $universalApk = Join-Path $apkDir "app-universal-release.apk"
-    $arm32Apk     = Join-Path $apkDir "app-armeabi-v7a-release.apk"
-    $arm64Apk     = Join-Path $apkDir "app-arm64-v8a-release.apk"
+    $apkDir = Join-Path $androidDir "app\build\outputs\apk\$buildTypeLower"
+    $universalApk = Join-Path $apkDir "app-universal-$buildTypeLower.apk"
+    $arm32Apk     = Join-Path $apkDir "app-armeabi-v7a-$buildTypeLower.apk"
+    $arm64Apk     = Join-Path $apkDir "app-arm64-v8a-$buildTypeLower.apk"
 
     Write-Host ""
-    Write-Host "=== COMPILED RELEASE APKS (TOTAL 3) ===" -ForegroundColor Green
+    Write-Host "=== COMPILED $buildTypeCap.ToUpper() APKS (TOTAL 3) ===" -ForegroundColor Green
 
     $apkList = @(
         @{ Name = "Universal App (All ABIs)"; Path = $universalApk; Arch = "universal" },
@@ -169,18 +175,18 @@ try {
         $targetApk = $null
         if ($devAbi -eq "arm64-v8a" -and (Test-Path $arm64Apk)) {
             $targetApk = $arm64Apk
-            Write-Host "Targeting optimized 64-bit APK: app-arm64-v8a-release.apk" -ForegroundColor Yellow
+            Write-Host "Targeting optimized 64-bit APK: app-arm64-v8a-$buildTypeLower.apk" -ForegroundColor Yellow
         } elseif ($devAbi -eq "armeabi-v7a" -and (Test-Path $arm32Apk)) {
             $targetApk = $arm32Apk
-            Write-Host "Targeting optimized 32-bit APK: app-armeabi-v7a-release.apk" -ForegroundColor Yellow
+            Write-Host "Targeting optimized 32-bit APK: app-armeabi-v7a-$buildTypeLower.apk" -ForegroundColor Yellow
         } elseif (Test-Path $universalApk) {
             $targetApk = $universalApk
-            Write-Host "Targeting Universal APK: app-universal-release.apk" -ForegroundColor Yellow
+            Write-Host "Targeting Universal APK: app-universal-$buildTypeLower.apk" -ForegroundColor Yellow
         }
 
         if ($targetApk) {
             Write-Host "Installing $targetApk to $devId over Wireless Debugging..." -ForegroundColor Cyan
-            $installResult = adb -s $devId install -r $targetApk
+            $installResult = adb -s $devId install -r -d $targetApk
             Write-Host "Install Result: $installResult" -ForegroundColor Green
 
             if (-not $NoLaunch) {
