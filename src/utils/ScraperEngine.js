@@ -699,31 +699,8 @@ var ClientUtils = class {
 
       // For top 3 streaming links (FSL, FSLv2, Pixeldrain):
       // Strictly verify that it is working AND supports HTTP 206 Partial Content
-      if (!isHls && status !== 206) {
+      if (!isHls && (status !== 206 || !contentRange)) {
         return { isLive: false, supports206: false };
-      }
-      if (!isHls && !contentRange) {
-        return { isLive: false, supports206: false };
-      }
-
-      // Test secondary forward seek range (50MB offset) to strictly verify seeking/fast-forward is supported
-      if (!isHls) {
-        try {
-          const seekRes = await fetch(safeUrl, {
-            method: "GET",
-            headers: {
-              ...reqHeaders,
-              "Range": "bytes=52428800-52429824"
-            },
-            signal: controller ? controller.signal : void 0,
-            redirect: "follow"
-          });
-          if (seekRes.status !== 206 || !seekRes.headers.get("content-range")) {
-            return { isLive: false, supports206: false };
-          }
-        } catch {
-          return { isLive: false, supports206: false };
-        }
       }
 
       return { isLive: true, supports206: true, status: 206, contentType };
@@ -1015,6 +992,8 @@ var ClientUtils = class {
       while ((m = anchorRegex.exec(vcloudText)) !== null) {
         let link = m[1];
         const text = m[2].replace(/<[^>]+>/g, "").trim();
+        const lowerLink = (link || '').toLowerCase();
+        const lowerText = (text || '').toLowerCase();
         if (!link || link.startsWith('#') || link.includes('google.com/search') || link.includes('tinyurl') || link.includes('t.me') || link.includes('one.one.one') || link.includes('snvhost')) continue;
         if (link.includes('.zip') || link.includes('.rar') || text.includes('.zip') || text.includes('batch')) continue;
 
@@ -1560,7 +1539,7 @@ var HDHub4uClient = class {
     const title = titleMatch ? titleMatch[1].replace(/<[^>]+>/g, "").trim().replace(/&#038;/g, "&") : "Media Details";
     const isSeries = pageUrl.includes("-series-") || title.toLowerCase().includes("season") || title.toLowerCase().includes("series");
 
-    const { episodeMap, movieBridges, defaultPageSeason } = parseMediaBridges(html, title);
+    const { episodeMap, movieBridges, watchBridges, defaultPageSeason } = parseMediaBridges(html, title);
     const effectiveSeason = targetSeason || defaultPageSeason || 1;
 
     const episodes = [];
@@ -1612,7 +1591,7 @@ var HDHub4uClient = class {
     const title = titleMatch ? titleMatch[1].replace(/<[^>]+>/g, "").trim().replace(/&#038;/g, "&") : "Media Details";
     const isSeries = Boolean(isTVShow) || pageUrl.includes("-series-") || pageUrl.includes("-all-episodes");
 
-    const { episodeMap, movieBridges, defaultPageSeason } = parseMediaBridges(html, title);
+    const { episodeMap, movieBridges, watchBridges, defaultPageSeason } = parseMediaBridges(html, title);
     const targetSeason = parseInt(seasonNumber || defaultPageSeason || 1, 10);
     const targetEp = parseInt(episodeNumber || 1, 10);
 
@@ -2169,7 +2148,7 @@ var FourKHDHubClient = class {
     const title = titleMatch ? titleMatch[1].replace(/<[^>]+>/g, "").trim().replace(/&#038;/g, "&") : "Media Details";
     const isSeries = pageUrl.includes("-series-") || title.toLowerCase().includes("season") || title.toLowerCase().includes("series");
 
-    const { episodeMap, movieBridges, defaultPageSeason } = parseMediaBridges(html, title);
+    const { episodeMap, movieBridges, watchBridges, defaultPageSeason } = parseMediaBridges(html, title);
     const effectiveSeason = targetSeason || defaultPageSeason || 1;
 
     const episodes = [];
@@ -2221,7 +2200,7 @@ var FourKHDHubClient = class {
     const title = titleMatch ? titleMatch[1].replace(/<[^>]+>/g, "").trim().replace(/&#038;/g, "&") : "Media Details";
     const isSeries = Boolean(isTVShow) || pageUrl.includes("-series-") || pageUrl.includes("-all-episodes");
 
-    const { episodeMap, movieBridges, defaultPageSeason } = parseMediaBridges(html, title);
+    const { episodeMap, movieBridges, watchBridges, defaultPageSeason } = parseMediaBridges(html, title);
     const targetSeason = parseInt(seasonNumber || defaultPageSeason || 1, 10);
     const targetEp = parseInt(episodeNumber || 1, 10);
     const qualities = {};

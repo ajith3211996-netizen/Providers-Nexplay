@@ -194,7 +194,8 @@ export class Movies4uClient {
 
     setBaseUrl(url) {
         if (url && typeof url === 'string') {
-            this.liveBaseUrl = url.replace(/\/+$/, '');
+            const cleanUrl = url.replace(/new[1-6]\.movies4u\.clinic/g, 'new7.movies4u.clinic').replace(/\/+$/, '');
+            this.liveBaseUrl = cleanUrl;
             this.domainResolved = true;
             if (!this.mirrors.includes(this.liveBaseUrl)) {
                 this.mirrors.unshift(this.liveBaseUrl);
@@ -204,7 +205,9 @@ export class Movies4uClient {
 
     setMirrors(mirrors) {
         if (Array.isArray(mirrors) && mirrors.length > 0) {
-            this.mirrors = mirrors.map(m => m.replace(/\/+$/, ''));
+            this.mirrors = mirrors
+                .map(m => m.replace(/new[1-6]\.movies4u\.clinic/g, 'new7.movies4u.clinic').replace(/\/+$/, ''))
+                .filter(m => !m.includes('new6.') && !m.includes('new5.'));
             if (this.mirrors.length > 0) {
                 this.liveBaseUrl = this.mirrors[0];
                 this.domainResolved = true;
@@ -220,7 +223,7 @@ export class Movies4uClient {
      * Resolves the active live mirror from the entry point https://movies4u.foo
      */
     async resolveLiveDomain(customHttpGet) {
-        if (this.domainResolved)
+        if (this.domainResolved && this.liveBaseUrl && !this.liveBaseUrl.includes('new6.') && !this.liveBaseUrl.includes('new5.'))
             return this.liveBaseUrl;
         const fetchHtml = customHttpGet || this.defaultHttpGet.bind(this);
         try {
@@ -239,7 +242,7 @@ export class Movies4uClient {
                                 headers: { 'User-Agent': DEFAULT_USER_AGENT }
                             });
                             if (res.url && !res.url.includes('tinyurl.com')) {
-                                const resolvedOrigin = new URL(res.url).origin;
+                                const resolvedOrigin = new URL(res.url).origin.replace(/new[1-6]\.movies4u\.clinic/g, 'new7.movies4u.clinic');
                                 this.liveBaseUrl = resolvedOrigin;
                                 this.domainResolved = true;
                                 return this.liveBaseUrl;
@@ -255,6 +258,7 @@ export class Movies4uClient {
         catch {
             // fallback to preconfigured liveBaseUrl
         }
+        this.liveBaseUrl = 'https://new7.movies4u.clinic';
         this.domainResolved = true;
         return this.liveBaseUrl;
     }
@@ -266,46 +270,65 @@ export class Movies4uClient {
         if (!cleanQuery)
             return [];
         const baseUrl = await this.resolveLiveDomain(customHttpGet);
-        const searchUrl = `${baseUrl}/lookup.php?q=${encodeURIComponent(cleanQuery)}&page=${page}&per_page=30`;
-        try {
-            const fetcher = customHttpGet || this.defaultHttpGet.bind(this);
-            const resText = await fetcher(searchUrl, {
-                'User-Agent': DEFAULT_USER_AGENT,
-                'Referer': `${baseUrl}/search.html?q=${encodeURIComponent(cleanQuery)}`
-            });
-            const data = JSON.parse(resText);
-            const hits = Array.isArray(data?.hits) ? data.hits : [];
-            return hits.map((hit) => {
-                const rawTitle = hit.post_title || '';
-                const yearMatch = rawTitle.match(/\b(19\d{2}|20\d{2})\b/);
-                const year = yearMatch ? parseInt(yearMatch[1], 10) : undefined;
-                const isSeries = /\b(?:season|s\d+|series|episodes?)\b/i.test(rawTitle);
-                const permalink = hit.permalink?.startsWith('http')
-                    ? hit.permalink
-                    : `${baseUrl}${hit.permalink?.startsWith('/') ? '' : '/'}${hit.permalink || ''}`;
-                return {
-                    id: String(hit.id || ''),
-                    title: rawTitle,
-                    cleanTitle: this.cleanTitle(rawTitle),
-                    url: permalink,
-                    thumbnail: hit.post_thumbnail || undefined,
-                    quality: hit.movie_quality || this.detectQuality(rawTitle),
-                    year,
-                    mediaType: isSeries ? 'series' : 'movie',
-                    provider: 'movies4u'
-                };
-            });
+        const candidateMirrors = Array.from(new Set([
+            baseUrl,
+            this.liveBaseUrl,
+            ...this.mirrors,
+            'https://new7.movies4u.clinic',
+            'https://new8.movies4u.clinic'
+        ])).map(m => (m || '').replace(/new[1-6]\.movies4u\.clinic/g, 'new7.movies4u.clinic').replace(/\/+$/, ''))
+          .filter(m => m && !m.includes('new6.') && !m.includes('new5.'));
+
+        const fetcher = customHttpGet || this.defaultHttpGet.bind(this);
+
+        for (const mirror of candidateMirrors) {
+            const searchUrl = `${mirror}/lookup.php?q=${encodeURIComponent(cleanQuery)}&page=${page}&per_page=30`;
+            try {
+                const resText = await fetcher(searchUrl, {
+                    'User-Agent': DEFAULT_USER_AGENT,
+                    'Referer': `${mirror}/search.html?q=${encodeURIComponent(cleanQuery)}`
+                }, 6000);
+                if (!resText || resText.startsWith('<') || resText.includes('<html')) {
+                    continue; // Skip parked HTML or redirect responses
+                }
+                const data = JSON.parse(resText);
+                const hits = Array.isArray(data?.hits) ? data.hits : [];
+                this.liveBaseUrl = mirror;
+                this.domainResolved = true;
+                return hits.map((hit) => {
+                    const rawTitle = hit.post_title || '';
+                    const yearMatch = rawTitle.match(/\b(19\d{2}|20\d{2})\b/);
+                    const year = yearMatch ? parseInt(yearMatch[1], 10) : undefined;
+                    const isSeries = /\b(?:season|s\d+|series|episodes?)\b/i.test(rawTitle);
+                    const permalink = hit.permalink?.startsWith('http')
+                        ? hit.permalink.replace(/new[1-6]\.movies4u\.clinic/g, 'new7.movies4u.clinic')
+                        : `${mirror}${hit.permalink?.startsWith('/') ? '' : '/'}${hit.permalink || ''}`;
+                    return {
+                        id: String(hit.id || ''),
+                        title: rawTitle,
+                        cleanTitle: this.cleanTitle(rawTitle),
+                        url: permalink,
+                        thumbnail: hit.post_thumbnail || undefined,
+                        quality: hit.movie_quality || this.detectQuality(rawTitle),
+                        year,
+                        mediaType: isSeries ? 'series' : 'movie',
+                        provider: 'movies4u'
+                    };
+                });
+            }
+            catch (err) {
+                console.warn(`[Movies4u] Mirror ${mirror} search note:`, err?.message || err);
+            }
         }
-        catch {
-            return [];
-        }
+        return [];
     }
     /**
      * Extracts detailed metadata, download links, and episode map from a movie/series page
      */
     async extractDetails(pageUrl, targetSeason = 1, customHttpGet) {
-        const baseUrl = await this.resolveLiveDomain(customHttpGet);
-        const targetUrl = pageUrl.startsWith('http') ? pageUrl : `${baseUrl}/${pageUrl.replace(/^\/+/, '')}`;
+        let cleanPageUrl = (pageUrl || '').replace(/new[1-6]\.movies4u\.clinic/g, 'new7.movies4u.clinic');
+        const baseUrl = (await this.resolveLiveDomain(customHttpGet)).replace(/new[1-6]\.movies4u\.clinic/g, 'new7.movies4u.clinic');
+        const targetUrl = cleanPageUrl.startsWith('http') ? cleanPageUrl : `${baseUrl}/${cleanPageUrl.replace(/^\/+/, '')}`;
         const fetcher = customHttpGet || this.defaultHttpGet.bind(this);
         const html = await fetcher(targetUrl, {
             'User-Agent': DEFAULT_USER_AGENT,
@@ -526,31 +549,8 @@ export class Movies4uClient {
 
             // For top 3 streaming links (FSL, FSLv2, Pixeldrain):
             // Strictly verify that it is working AND supports HTTP 206 Partial Content
-            if (!isHls && status !== 206) {
+            if (!isHls && (status !== 206 || !contentRange)) {
                 return { isLive: false, supports206: false };
-            }
-            if (!isHls && !contentRange) {
-                return { isLive: false, supports206: false };
-            }
-
-            // Test secondary forward seek range (50MB offset) to strictly verify seeking/fast-forward is supported
-            if (!isHls) {
-                try {
-                    const seekRes = await fetch(streamUrl, {
-                        method: "GET",
-                        headers: {
-                            ...reqHeaders,
-                            "Range": "bytes=52428800-52429824"
-                        },
-                        signal: controller ? controller.signal : void 0,
-                        redirect: "follow"
-                    });
-                    if (seekRes.status !== 206 || !seekRes.headers.get("content-range")) {
-                        return { isLive: false, supports206: false };
-                    }
-                } catch {
-                    return { isLive: false, supports206: false };
-                }
             }
 
             return { isLive: true, supports206: true, status: 206, contentType };
