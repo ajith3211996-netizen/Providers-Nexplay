@@ -32,8 +32,17 @@ if (Test-Path "$source\ProviderBundles.js") {
 if (Test-Path "$source\ProviderUpdateManager.js") {
     Copy-Item -Path "$source\ProviderUpdateManager.js" -Destination "src\utils\ProviderUpdateManager.js" -Force
 }
+if (Test-Path "$source\AudioTrackSelector.js") {
+    Copy-Item -Path "$source\AudioTrackSelector.js" -Destination "src\utils\AudioTrackSelector.js" -Force
+}
+if (Test-Path "$source\PlayerSettingsController.js") {
+    Copy-Item -Path "$source\PlayerSettingsController.js" -Destination "src\utils\PlayerSettingsController.js" -Force
+}
 if (Test-Path "$configSource\manifest.json") {
     Copy-Item -Path "$configSource\manifest.json" -Destination "manifest.json" -Force
+}
+if (Test-Path "$configSource\version.json") {
+    Copy-Item -Path "$configSource\version.json" -Destination "version.json" -Force
 }
 
 Write-Host "✅ Successfully synced files from Stitch-nexplay into Providers-Nexplay!" -ForegroundColor Green

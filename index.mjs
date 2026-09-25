@@ -39,10 +39,21 @@ export {
   ProviderBundles 
 } from './src/utils/ProviderBundles.js';
 
+// Audio Track Selector & Player Settings Controller
+export { 
+  selectOptimalDefaultAudioTrack,
+  getTrackDisplayLabel,
+  stripWebsitesAndJunk,
+  extractCleanLanguage,
+  INDIAN_LANGUAGES,
+  LANGUAGE_NAMES
+} from './src/utils/AudioTrackSelector.js';
+export { PlayerSettingsController } from './src/utils/PlayerSettingsController.js';
+
 // TMDB Metadata & Search API
 export { 
-  getMovieDetails, 
-  getTVShowDetails, 
-  getSeasonDetails, 
+  fetchMediaDetails, 
+  fetchTvSeasonEpisodes, 
   searchMulti 
 } from './src/utils/api.js';
+
