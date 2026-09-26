@@ -23,13 +23,14 @@ import {
   SERVERS,
   CHANNELS,
   REALITY_SHOWS_CACHE,
+  TV_PROGRAMMES_CACHE,
   getCachedSerialsForServer,
   findSerial
 } from '../utils/TvSerialsMetadataCache';
 
 const { width: windowWidth } = Dimensions.get('window');
 
-// Channel Logo component with latest official branding + reliable vector fallback
+// Channel Logo component with official branding + vector fallback (KTV removed)
 function ChannelLogo({ channelCode, size = scale(16), style }) {
   const channel = CHANNELS.find(c => c.code === channelCode || c.id === channelCode);
   const [hasError, setHasError] = useState(false);
@@ -51,8 +52,6 @@ function ChannelLogo({ channelCode, size = scale(16), style }) {
       return <FontAwesome5 name="star" size={size * 0.85} color="#ef4444" style={style} />;
     case 'zee':
       return <MaterialCommunityIcons name="weather-sunset-up" size={size} color="#a855f7" style={style} />;
-    case 'ktv':
-      return <Ionicons name="film" size={size} color="#0ea5e9" style={style} />;
     default:
       return <Ionicons name="tv" size={size} color="#3b82f6" style={style} />;
   }
@@ -88,7 +87,7 @@ export default function TvSerialsScreen() {
   const [currentCalendarDate, setCurrentCalendarDate] = useState(new Date(2026, 8, 25)); // Sep 25, 2026
   const [selectedDay, setSelectedDay] = useState(25);
 
-  // In-Screen VLC Player State (Positioned below the camera hole)
+  // In-Screen VLC Player State (Positioned cleanly below camera hole)
   const [isPlaying, setIsPlaying] = useState(false);
   const [isPlayerActive, setIsPlayerActive] = useState(false);
   const [isLoadingStream, setIsLoadingStream] = useState(false);
@@ -230,6 +229,10 @@ export default function TvSerialsScreen() {
   const homeFilteredReality = homeChannelFilter === 'all'
     ? REALITY_SHOWS_CACHE
     : REALITY_SHOWS_CACHE.filter(r => r.channelCode === homeChannelFilter);
+
+  const homeFilteredProgrammes = homeChannelFilter === 'all'
+    ? TV_PROGRAMMES_CACHE
+    : TV_PROGRAMMES_CACHE.filter(p => p.channelCode === homeChannelFilter);
 
   // ==============================================================
   // VIEW 2: INDIVIDUAL DETAILED SERIAL SCREEN (Step 1, 2, 3 + Player below camera hole)
@@ -721,7 +724,7 @@ export default function TvSerialsScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* 1. TOP HERO BANNER (Rich metadata & Tamil typography, NO star ratings) */}
+        {/* 1. TOP HERO BANNER (CONSTANT FIXED SIZE, NO SHIFTING ON ROTATION, NO STAR RATINGS) */}
         <View style={styles.heroOuterWrapper}>
           <LinearGradient
             colors={['#070a13', '#0b1222', '#0f172a']}
@@ -749,16 +752,16 @@ export default function TvSerialsScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* Hero Main Content Row */}
+            {/* Hero Main Content Row: Fixed layout height */}
             <View style={styles.heroMainRow}>
               <View style={styles.heroInfoColumn}>
                 <Text style={styles.heroTitle} numberOfLines={1}>
                   {currentHero.title}
                 </Text>
-                <Text style={styles.heroTamilTitle}>
+                <Text style={styles.heroTamilTitle} numberOfLines={1}>
                   {currentHero.tamilTitle}
                 </Text>
-                <Text style={styles.heroDescription} numberOfLines={3}>
+                <Text style={styles.heroDescription} numberOfLines={2}>
                   {currentHero.description}
                 </Text>
 
@@ -811,25 +814,7 @@ export default function TvSerialsScreen() {
           </LinearGradient>
         </View>
 
-        {/* 2. METRICS BAR (Active Channel, Total Serials, Reality Slate) */}
-        <View style={styles.metricsContainer}>
-          <View style={styles.metricItem}>
-            <Text style={styles.metricLabel}>Active Channel</Text>
-            <Text style={styles.metricValue} numberOfLines={1}>
-              {homeChannelFilter === 'all' ? 'All Networks' : (CHANNELS.find(c => c.id === homeChannelFilter)?.name || 'All Networks')}
-            </Text>
-          </View>
-          <View style={styles.metricItem}>
-            <Text style={styles.metricLabel}>Total Serials</Text>
-            <Text style={styles.metricValue}>{homeFilteredSerials.length} Tamil Soap</Text>
-          </View>
-          <View style={styles.metricItem}>
-            <Text style={styles.metricLabel}>Reality Slate</Text>
-            <Text style={styles.metricValue}>{homeFilteredReality.length} Prime Slots</Text>
-          </View>
-        </View>
-
-        {/* 3. PRIMARY BROADCASTERS / சேனல்கள் (Channel Filter with Official Logos) */}
+        {/* 2. PRIMARY BROADCASTERS / சேனல்கள் (KTV REMOVED, OFFICIAL LOGOS) */}
         <View style={styles.sectionHeaderRow}>
           <View style={styles.sectionTitleWithIcon}>
             <Ionicons name="tv" size={scale(18)} color="#2563eb" style={{ marginRight: scale(8) }} />
@@ -870,8 +855,8 @@ export default function TvSerialsScreen() {
           })}
         </ScrollView>
 
-        {/* 4. TRENDING DAILY SERIALS / தொடர்கள் (NO star ratings, opens individual detail on click) */}
-        <View style={[styles.sectionHeaderRow, { marginTop: verticalScale(18) }]}>
+        {/* 3. TRENDING DAILY SERIALS / தொடர்கள் (NO star ratings, opens individual detail on click) */}
+        <View style={[styles.sectionHeaderRow, { marginTop: verticalScale(16) }]}>
           <View style={styles.sectionTitleWithIcon}>
             <Ionicons name="trending-up" size={scale(18)} color="#ef4444" style={{ marginRight: scale(8) }} />
             <Text style={styles.sectionHeaderTitle}>Trending Daily Serials / தொடர்கள்</Text>
@@ -919,7 +904,7 @@ export default function TvSerialsScreen() {
           ))}
         </View>
 
-        {/* 5. POPULAR REALITY SHOWS / நிகழ்ச்சிகள் (NO star ratings) */}
+        {/* 4. POPULAR REALITY SHOWS / நிகழ்ச்சிகள் (NO star ratings) */}
         <View style={styles.realityHeaderWrapper}>
           <Text style={styles.sectionHeaderTitleCentered}>Popular Reality Shows / நிகழ்ச்சிகள்</Text>
         </View>
@@ -960,6 +945,52 @@ export default function TvSerialsScreen() {
               <View style={styles.cardBottomRow}>
                 <Text style={styles.cardMetaLeft}>{show.genre}</Text>
                 <Text style={styles.cardMetaRight}>{show.timeSlot}</Text>
+              </View>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* 5. TV PROGRAMMES / தொலைக்காட்சி நிகழ்ச்சிகள் (NEW CATEGORY BELOW REALITY SHOWS) */}
+        <View style={styles.realityHeaderWrapper}>
+          <Text style={styles.sectionHeaderTitleCentered}>TV Programmes / தொலைக்காட்சி நிகழ்ச்சிகள்</Text>
+        </View>
+
+        <View style={styles.cardsGridContainer}>
+          {homeFilteredProgrammes.map((prg) => (
+            <TouchableOpacity
+              key={prg.id}
+              style={[
+                styles.serialCard,
+                { backgroundColor: prg.bgColor, borderColor: prg.borderColor }
+              ]}
+              activeOpacity={0.82}
+              onPress={() => handleOpenDetailScreen(prg)}
+            >
+              {/* Top row: Channel Badge + Genre Tag */}
+              <View style={styles.cardTopRow}>
+                <View style={styles.channelBadgePill}>
+                  <ChannelLogo channelCode={prg.channelCode} size={scale(11)} style={{ marginRight: scale(4) }} />
+                  <Text style={styles.channelBadgeText}>{prg.channel}</Text>
+                </View>
+                <View style={styles.cardSlotBadge}>
+                  <Text style={styles.cardSlotBadgeText}>{prg.tag || 'Special'}</Text>
+                </View>
+              </View>
+
+              {/* Center: Title + Tamil Subtitle */}
+              <View style={styles.cardTitleContainer}>
+                <Text style={styles.cardTitleText} numberOfLines={1}>
+                  {prg.title}
+                </Text>
+                <Text style={[styles.cardTamilTitleText, { color: prg.tamilColor }]} numberOfLines={1}>
+                  {prg.tamilTitle}
+                </Text>
+              </View>
+
+              {/* Bottom: Genre + Air time */}
+              <View style={styles.cardBottomRow}>
+                <Text style={styles.cardMetaLeft}>{prg.genre}</Text>
+                <Text style={styles.cardMetaRight}>{prg.timeSlot}</Text>
               </View>
             </TouchableOpacity>
           ))}
@@ -1035,7 +1066,7 @@ const styles = StyleSheet.create({
   },
   playerBox: {
     width: '100%',
-    height: (windowWidth * 9) / 16, // Standard 16:9 ratio like MovieDetailScreen
+    height: (windowWidth * 9) / 16,
     backgroundColor: '#000000',
     position: 'relative',
     justifyContent: 'space-between',
@@ -1526,7 +1557,7 @@ const styles = StyleSheet.create({
   },
 
   // -------------------------------------------------------------
-  // HOME PAGE STYLES
+  // HOME PAGE STYLES (CONSTANT FIXED HERO CARD SIZE)
   // -------------------------------------------------------------
   heroOuterWrapper: {
     paddingHorizontal: scale(10),
@@ -1535,38 +1566,42 @@ const styles = StyleSheet.create({
     backgroundColor: '#060912',
   },
   heroCard: {
+    height: verticalScale(195), // CONSTANT FIXED HEIGHT (Prevents border sizing jumps)
+    minHeight: verticalScale(195),
+    maxHeight: verticalScale(195),
     borderRadius: scale(18),
     paddingHorizontal: scale(16),
-    paddingTop: verticalScale(14),
-    paddingBottom: verticalScale(16),
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+    paddingTop: verticalScale(12),
+    paddingBottom: verticalScale(12),
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
     overflow: 'hidden',
+    justifyContent: 'space-between',
   },
   heroHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: verticalScale(12),
+    height: verticalScale(32),
   },
   networkBadgePill: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#2563eb',
-    paddingVertical: verticalScale(4),
-    paddingHorizontal: scale(12),
-    borderRadius: scale(20),
+    paddingVertical: verticalScale(3),
+    paddingHorizontal: scale(10),
+    borderRadius: scale(18),
   },
   networkBadgeText: {
     color: '#ffffff',
-    fontSize: moderateScale(10.5),
+    fontSize: moderateScale(10),
     fontWeight: '900',
-    letterSpacing: 0.8,
+    letterSpacing: 0.6,
   },
   pauseCircleBtn: {
-    width: scale(32),
-    height: scale(32),
-    borderRadius: scale(16),
+    width: scale(30),
+    height: scale(30),
+    borderRadius: scale(15),
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.18)',
@@ -1576,31 +1611,34 @@ const styles = StyleSheet.create({
   heroMainRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
+    flex: 1,
   },
   heroInfoColumn: {
     flex: 1,
     paddingRight: scale(10),
+    justifyContent: 'center',
   },
   heroTitle: {
     color: '#ffffff',
-    fontSize: moderateScale(22),
+    fontSize: moderateScale(20),
     fontWeight: '900',
-    letterSpacing: -0.4,
+    letterSpacing: -0.3,
   },
   heroTamilTitle: {
     color: '#f59e0b',
-    fontSize: moderateScale(15),
+    fontSize: moderateScale(14),
     fontWeight: '800',
-    marginTop: verticalScale(2),
-    marginBottom: verticalScale(6),
+    marginTop: verticalScale(1),
+    marginBottom: verticalScale(2),
   },
   heroDescription: {
     color: '#94a3b8',
-    fontSize: moderateScale(11.5),
-    lineHeight: moderateScale(16),
+    fontSize: moderateScale(11),
+    lineHeight: moderateScale(15),
     fontWeight: '500',
-    marginBottom: verticalScale(14),
+    height: moderateScale(30), // CONSTANT FIXED HEIGHT (Never shifts when text length varies)
+    marginBottom: verticalScale(8),
   },
   heroActionsRow: {
     flexDirection: 'row',
@@ -1610,28 +1648,28 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#2563eb',
-    paddingVertical: verticalScale(7),
-    paddingHorizontal: scale(16),
-    borderRadius: scale(22),
-    marginRight: scale(12),
+    paddingVertical: verticalScale(6),
+    paddingHorizontal: scale(14),
+    borderRadius: scale(20),
+    marginRight: scale(10),
     elevation: 3,
   },
   quickPlayText: {
     color: '#ffffff',
-    fontSize: moderateScale(12),
+    fontSize: moderateScale(11.5),
     fontWeight: '800',
   },
   heroTimeSlotBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    paddingVertical: verticalScale(5),
-    paddingHorizontal: scale(10),
-    borderRadius: scale(14),
+    paddingVertical: verticalScale(4),
+    paddingHorizontal: scale(8),
+    borderRadius: scale(12),
   },
   heroTimeSlotText: {
     color: '#cbd5e1',
-    fontSize: moderateScale(11.5),
+    fontSize: moderateScale(11),
     fontWeight: '700',
   },
   liveBroadcastContainer: {
@@ -1640,8 +1678,8 @@ const styles = StyleSheet.create({
     paddingLeft: scale(4),
   },
   liveBroadcastGlassCard: {
-    width: scale(88),
-    height: scale(88),
+    width: scale(82),
+    height: scale(82),
     borderRadius: scale(14),
     backgroundColor: 'rgba(255, 255, 255, 0.04)',
     borderWidth: 1,
@@ -1653,71 +1691,42 @@ const styles = StyleSheet.create({
   },
   liveBroadcastTitle: {
     color: '#94a3b8',
-    fontSize: moderateScale(8.5),
+    fontSize: moderateScale(8),
     fontWeight: '800',
     letterSpacing: 0.8,
-    marginTop: verticalScale(3),
+    marginTop: verticalScale(2),
   },
   liveBroadcastSubtitle: {
     color: '#64748b',
-    fontSize: moderateScale(7),
+    fontSize: moderateScale(6.5),
     fontWeight: '700',
     letterSpacing: 0.6,
   },
   liveStatusDot: {
     position: 'absolute',
-    bottom: scale(6),
-    right: scale(6),
-    width: scale(8),
-    height: scale(8),
-    borderRadius: scale(4),
+    bottom: scale(5),
+    right: scale(5),
+    width: scale(7),
+    height: scale(7),
+    borderRadius: scale(3.5),
     backgroundColor: '#22c55e',
   },
   paginationRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: verticalScale(14),
     gap: scale(6),
   },
   paginationDot: {
-    height: verticalScale(5),
-    borderRadius: scale(2.5),
+    height: verticalScale(4.5),
+    borderRadius: scale(2.25),
   },
   paginationDotActive: {
-    width: scale(22),
+    width: scale(20),
     backgroundColor: '#3b82f6',
   },
   paginationDotInactive: {
     width: scale(6),
     backgroundColor: '#475569',
-  },
-
-  // Metrics Bar (Home)
-  metricsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    backgroundColor: '#ffffff',
-    paddingVertical: verticalScale(12),
-    paddingHorizontal: scale(8),
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-    elevation: 1,
-  },
-  metricItem: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  metricLabel: {
-    color: '#6b7280',
-    fontSize: moderateScale(11),
-    fontWeight: '500',
-    marginBottom: verticalScale(2),
-  },
-  metricValue: {
-    color: '#111827',
-    fontSize: moderateScale(13),
-    fontWeight: '800',
   },
 
   // Broadcasters Row (Home)
@@ -1851,7 +1860,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
-  // Reality Header (Home)
+  // Section Headers for Reality & TV Programmes (Home)
   realityHeaderWrapper: {
     alignItems: 'center',
     justifyContent: 'center',
