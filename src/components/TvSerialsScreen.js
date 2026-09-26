@@ -8,6 +8,7 @@ import {
   Dimensions,
   Animated,
   Image,
+  ImageBackground,
   Modal,
   TextInput,
   ActivityIndicator,
@@ -796,7 +797,7 @@ export default function TvSerialsScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* Hero Main Content Row: Fixed layout height */}
+            {/* Hero Main Content Row: Constant fixed layout, description & time removed */}
             <View style={styles.heroMainRow}>
               <View style={styles.heroInfoColumn}>
                 <Text style={styles.heroTitle} numberOfLines={1}>
@@ -805,11 +806,8 @@ export default function TvSerialsScreen() {
                 <Text style={styles.heroTamilTitle} numberOfLines={1}>
                   {currentHero.tamilTitle}
                 </Text>
-                <Text style={styles.heroDescription} numberOfLines={2}>
-                  {currentHero.description}
-                </Text>
 
-                {/* Action Buttons: Quick Play + Time Slot Tag (Star rating removed!) */}
+                {/* Action Button: Quick Play */}
                 <View style={styles.heroActionsRow}>
                   <TouchableOpacity
                     style={styles.quickPlayButton}
@@ -819,11 +817,6 @@ export default function TvSerialsScreen() {
                     <Ionicons name="play" size={scale(14)} color="#ffffff" style={{ marginRight: scale(5) }} />
                     <Text style={styles.quickPlayText}>Quick Play</Text>
                   </TouchableOpacity>
-
-                  <View style={styles.heroTimeSlotBadge}>
-                    <Ionicons name="time-outline" size={scale(13)} color="#cbd5e1" style={{ marginRight: scale(4) }} />
-                    <Text style={styles.heroTimeSlotText}>{currentHero.timeSlot}</Text>
-                  </View>
                 </View>
               </View>
 
@@ -916,37 +909,49 @@ export default function TvSerialsScreen() {
               key={serial.id}
               style={[
                 styles.serialCard,
-                { backgroundColor: serial.bgColor, borderColor: serial.borderColor }
+                { borderColor: serial.borderColor || '#38bdf8' }
               ]}
               activeOpacity={0.82}
               onPress={() => handleOpenDetailScreen(serial)}
             >
-              {/* Top row: Channel Badge + Time Slot (NO star rating!) */}
-              <View style={styles.cardTopRow}>
-                <View style={styles.channelBadgePill}>
-                  <ChannelLogo channelCode={serial.channelCode} size={scale(11)} style={{ marginRight: scale(4) }} />
-                  <Text style={styles.channelBadgeText}>{serial.channel}</Text>
-                </View>
-                <View style={styles.cardSlotBadge}>
-                  <Text style={styles.cardSlotBadgeText}>{serial.timeSlot}</Text>
-                </View>
-              </View>
+              <ImageBackground
+                source={{ uri: serial.image }}
+                style={styles.cardImageBg}
+                imageStyle={styles.cardImageBgInner}
+                resizeMode="cover"
+              >
+                <LinearGradient
+                  colors={['rgba(15, 23, 42, 0.45)', 'rgba(15, 23, 42, 0.82)', '#090d16']}
+                  style={styles.cardGradientOverlay}
+                >
+                  {/* Top row: Channel Badge + Time Slot */}
+                  <View style={styles.cardTopRow}>
+                    <View style={styles.channelBadgePill}>
+                      <ChannelLogo channelCode={serial.channelCode} size={scale(11)} style={{ marginRight: scale(4) }} />
+                      <Text style={styles.channelBadgeText}>{serial.channel}</Text>
+                    </View>
+                    <View style={styles.cardSlotBadge}>
+                      <Text style={styles.cardSlotBadgeText}>{serial.timeSlot}</Text>
+                    </View>
+                  </View>
 
-              {/* Center: Title + Tamil Subtitle */}
-              <View style={styles.cardTitleContainer}>
-                <Text style={styles.cardTitleText} numberOfLines={1}>
-                  {serial.title}
-                </Text>
-                <Text style={[styles.cardTamilTitleText, { color: serial.tamilColor }]} numberOfLines={1}>
-                  {serial.tamilTitle}
-                </Text>
-              </View>
+                  {/* Center: Title + Tamil Subtitle */}
+                  <View style={styles.cardTitleContainer}>
+                    <Text style={styles.cardTitleText} numberOfLines={1}>
+                      {serial.title}
+                    </Text>
+                    <Text style={[styles.cardTamilTitleText, { color: serial.tamilColor || '#38bdf8' }]} numberOfLines={1}>
+                      {serial.tamilTitle}
+                    </Text>
+                  </View>
 
-              {/* Bottom: Episodes count + Tag */}
-              <View style={styles.cardBottomRow}>
-                <Text style={styles.cardMetaLeft}>{serial.episodes}</Text>
-                <Text style={styles.cardMetaRight}>{serial.tag || 'Daily Soap'}</Text>
-              </View>
+                  {/* Bottom: Episodes count + Tag */}
+                  <View style={styles.cardBottomRow}>
+                    <Text style={styles.cardMetaLeft}>{serial.episodes}</Text>
+                    <Text style={styles.cardMetaRight}>{serial.tag || 'Daily Soap'}</Text>
+                  </View>
+                </LinearGradient>
+              </ImageBackground>
             </TouchableOpacity>
           ))}
         </View>
@@ -962,37 +967,49 @@ export default function TvSerialsScreen() {
               key={show.id}
               style={[
                 styles.serialCard,
-                { backgroundColor: show.bgColor, borderColor: show.borderColor }
+                { borderColor: show.borderColor || '#818cf8' }
               ]}
               activeOpacity={0.82}
               onPress={() => handleOpenDetailScreen(show)}
             >
-              {/* Top row: Channel Badge + Air Slot */}
-              <View style={styles.cardTopRow}>
-                <View style={styles.channelBadgePill}>
-                  <ChannelLogo channelCode={show.channelCode} size={scale(11)} style={{ marginRight: scale(4) }} />
-                  <Text style={styles.channelBadgeText}>{show.channel}</Text>
-                </View>
-                <View style={styles.cardSlotBadge}>
-                  <Text style={styles.cardSlotBadgeText}>Weekend</Text>
-                </View>
-              </View>
+              <ImageBackground
+                source={{ uri: show.image }}
+                style={styles.cardImageBg}
+                imageStyle={styles.cardImageBgInner}
+                resizeMode="cover"
+              >
+                <LinearGradient
+                  colors={['rgba(15, 23, 42, 0.45)', 'rgba(15, 23, 42, 0.82)', '#090d16']}
+                  style={styles.cardGradientOverlay}
+                >
+                  {/* Top row: Channel Badge + Air Slot */}
+                  <View style={styles.cardTopRow}>
+                    <View style={styles.channelBadgePill}>
+                      <ChannelLogo channelCode={show.channelCode} size={scale(11)} style={{ marginRight: scale(4) }} />
+                      <Text style={styles.channelBadgeText}>{show.channel}</Text>
+                    </View>
+                    <View style={styles.cardSlotBadge}>
+                      <Text style={styles.cardSlotBadgeText}>Weekend</Text>
+                    </View>
+                  </View>
 
-              {/* Center: Title + Tamil Subtitle */}
-              <View style={styles.cardTitleContainer}>
-                <Text style={styles.cardTitleText} numberOfLines={1}>
-                  {show.title}
-                </Text>
-                <Text style={[styles.cardTamilTitleText, { color: show.tamilColor }]} numberOfLines={1}>
-                  {show.tamilTitle}
-                </Text>
-              </View>
+                  {/* Center: Title + Tamil Subtitle */}
+                  <View style={styles.cardTitleContainer}>
+                    <Text style={styles.cardTitleText} numberOfLines={1}>
+                      {show.title}
+                    </Text>
+                    <Text style={[styles.cardTamilTitleText, { color: show.tamilColor || '#818cf8' }]} numberOfLines={1}>
+                      {show.tamilTitle}
+                    </Text>
+                  </View>
 
-              {/* Bottom: Genre + Time Slot */}
-              <View style={styles.cardBottomRow}>
-                <Text style={styles.cardMetaLeft}>{show.genre}</Text>
-                <Text style={styles.cardMetaRight}>{show.timeSlot}</Text>
-              </View>
+                  {/* Bottom: Genre + Time Slot */}
+                  <View style={styles.cardBottomRow}>
+                    <Text style={styles.cardMetaLeft}>{show.genre}</Text>
+                    <Text style={styles.cardMetaRight}>{show.timeSlot}</Text>
+                  </View>
+                </LinearGradient>
+              </ImageBackground>
             </TouchableOpacity>
           ))}
         </View>
@@ -1008,37 +1025,49 @@ export default function TvSerialsScreen() {
               key={prg.id}
               style={[
                 styles.serialCard,
-                { backgroundColor: prg.bgColor, borderColor: prg.borderColor }
+                { borderColor: prg.borderColor || '#38bdf8' }
               ]}
               activeOpacity={0.82}
               onPress={() => handleOpenDetailScreen(prg)}
             >
-              {/* Top row: Channel Badge + Genre Tag */}
-              <View style={styles.cardTopRow}>
-                <View style={styles.channelBadgePill}>
-                  <ChannelLogo channelCode={prg.channelCode} size={scale(11)} style={{ marginRight: scale(4) }} />
-                  <Text style={styles.channelBadgeText}>{prg.channel}</Text>
-                </View>
-                <View style={styles.cardSlotBadge}>
-                  <Text style={styles.cardSlotBadgeText}>{prg.tag || 'Special'}</Text>
-                </View>
-              </View>
+              <ImageBackground
+                source={{ uri: prg.image }}
+                style={styles.cardImageBg}
+                imageStyle={styles.cardImageBgInner}
+                resizeMode="cover"
+              >
+                <LinearGradient
+                  colors={['rgba(15, 23, 42, 0.45)', 'rgba(15, 23, 42, 0.82)', '#090d16']}
+                  style={styles.cardGradientOverlay}
+                >
+                  {/* Top row: Channel Badge + Genre Tag */}
+                  <View style={styles.cardTopRow}>
+                    <View style={styles.channelBadgePill}>
+                      <ChannelLogo channelCode={prg.channelCode} size={scale(11)} style={{ marginRight: scale(4) }} />
+                      <Text style={styles.channelBadgeText}>{prg.channel}</Text>
+                    </View>
+                    <View style={styles.cardSlotBadge}>
+                      <Text style={styles.cardSlotBadgeText}>{prg.tag || 'Special'}</Text>
+                    </View>
+                  </View>
 
-              {/* Center: Title + Tamil Subtitle */}
-              <View style={styles.cardTitleContainer}>
-                <Text style={styles.cardTitleText} numberOfLines={1}>
-                  {prg.title}
-                </Text>
-                <Text style={[styles.cardTamilTitleText, { color: prg.tamilColor }]} numberOfLines={1}>
-                  {prg.tamilTitle}
-                </Text>
-              </View>
+                  {/* Center: Title + Tamil Subtitle */}
+                  <View style={styles.cardTitleContainer}>
+                    <Text style={styles.cardTitleText} numberOfLines={1}>
+                      {prg.title}
+                    </Text>
+                    <Text style={[styles.cardTamilTitleText, { color: prg.tamilColor || '#38bdf8' }]} numberOfLines={1}>
+                      {prg.tamilTitle}
+                    </Text>
+                  </View>
 
-              {/* Bottom: Genre + Air time */}
-              <View style={styles.cardBottomRow}>
-                <Text style={styles.cardMetaLeft}>{prg.genre}</Text>
-                <Text style={styles.cardMetaRight}>{prg.timeSlot}</Text>
-              </View>
+                  {/* Bottom: Genre + Air time */}
+                  <View style={styles.cardBottomRow}>
+                    <Text style={styles.cardMetaLeft}>{prg.genre}</Text>
+                    <Text style={styles.cardMetaRight}>{prg.timeSlot}</Text>
+                  </View>
+                </LinearGradient>
+              </ImageBackground>
             </TouchableOpacity>
           ))}
         </View>
@@ -1054,37 +1083,49 @@ export default function TvSerialsScreen() {
               key={evt.id}
               style={[
                 styles.serialCard,
-                { backgroundColor: evt.bgColor, borderColor: evt.borderColor }
+                { borderColor: evt.borderColor || '#c084fc' }
               ]}
               activeOpacity={0.82}
               onPress={() => handleOpenDetailScreen(evt)}
             >
-              {/* Top row: Channel Badge + Tag */}
-              <View style={styles.cardTopRow}>
-                <View style={styles.channelBadgePill}>
-                  <ChannelLogo channelCode={evt.channelCode} size={scale(11)} style={{ marginRight: scale(4) }} />
-                  <Text style={styles.channelBadgeText}>{evt.channel}</Text>
-                </View>
-                <View style={styles.cardSlotBadge}>
-                  <Text style={styles.cardSlotBadgeText}>{evt.tag || 'Mega Event'}</Text>
-                </View>
-              </View>
+              <ImageBackground
+                source={{ uri: evt.image }}
+                style={styles.cardImageBg}
+                imageStyle={styles.cardImageBgInner}
+                resizeMode="cover"
+              >
+                <LinearGradient
+                  colors={['rgba(15, 23, 42, 0.45)', 'rgba(15, 23, 42, 0.82)', '#090d16']}
+                  style={styles.cardGradientOverlay}
+                >
+                  {/* Top row: Channel Badge + Tag */}
+                  <View style={styles.cardTopRow}>
+                    <View style={styles.channelBadgePill}>
+                      <ChannelLogo channelCode={evt.channelCode} size={scale(11)} style={{ marginRight: scale(4) }} />
+                      <Text style={styles.channelBadgeText}>{evt.channel}</Text>
+                    </View>
+                    <View style={styles.cardSlotBadge}>
+                      <Text style={styles.cardSlotBadgeText}>{evt.tag || 'Mega Event'}</Text>
+                    </View>
+                  </View>
 
-              {/* Center: Title + Tamil Subtitle */}
-              <View style={styles.cardTitleContainer}>
-                <Text style={styles.cardTitleText} numberOfLines={1}>
-                  {evt.title}
-                </Text>
-                <Text style={[styles.cardTamilTitleText, { color: evt.tamilColor }]} numberOfLines={1}>
-                  {evt.tamilTitle}
-                </Text>
-              </View>
+                  {/* Center: Title + Tamil Subtitle */}
+                  <View style={styles.cardTitleContainer}>
+                    <Text style={styles.cardTitleText} numberOfLines={1}>
+                      {evt.title}
+                    </Text>
+                    <Text style={[styles.cardTamilTitleText, { color: evt.tamilColor || '#c084fc' }]} numberOfLines={1}>
+                      {evt.tamilTitle}
+                    </Text>
+                  </View>
 
-              {/* Bottom: Genre + Air info */}
-              <View style={styles.cardBottomRow}>
-                <Text style={styles.cardMetaLeft}>{evt.genre}</Text>
-                <Text style={styles.cardMetaRight}>{evt.timeSlot}</Text>
-              </View>
+                  {/* Bottom: Genre + Air info */}
+                  <View style={styles.cardBottomRow}>
+                    <Text style={styles.cardMetaLeft}>{evt.genre}</Text>
+                    <Text style={styles.cardMetaRight}>{evt.timeSlot}</Text>
+                  </View>
+                </LinearGradient>
+              </ImageBackground>
             </TouchableOpacity>
           ))}
         </View>
@@ -1659,13 +1700,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#060912',
   },
   heroCard: {
-    height: verticalScale(195), // CONSTANT FIXED HEIGHT (Prevents border sizing jumps)
-    minHeight: verticalScale(195),
-    maxHeight: verticalScale(195),
+    height: verticalScale(140), // CONSTANT FIXED HEIGHT (Prevents border sizing jumps)
+    minHeight: verticalScale(140),
+    maxHeight: verticalScale(140),
     borderRadius: scale(18),
     paddingHorizontal: scale(16),
-    paddingTop: verticalScale(12),
-    paddingBottom: verticalScale(12),
+    paddingTop: verticalScale(10),
+    paddingBottom: verticalScale(10),
     borderWidth: 1.5,
     borderColor: 'rgba(255, 255, 255, 0.15)',
     overflow: 'hidden',
@@ -1675,7 +1716,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    height: verticalScale(32),
+    height: verticalScale(30),
   },
   networkBadgePill: {
     flexDirection: 'row',
@@ -1714,24 +1755,16 @@ const styles = StyleSheet.create({
   },
   heroTitle: {
     color: '#ffffff',
-    fontSize: moderateScale(20),
+    fontSize: moderateScale(18),
     fontWeight: '900',
     letterSpacing: -0.3,
   },
   heroTamilTitle: {
     color: '#f59e0b',
-    fontSize: moderateScale(14),
+    fontSize: moderateScale(13.5),
     fontWeight: '800',
     marginTop: verticalScale(1),
-    marginBottom: verticalScale(2),
-  },
-  heroDescription: {
-    color: '#94a3b8',
-    fontSize: moderateScale(11),
-    lineHeight: moderateScale(15),
-    fontWeight: '500',
-    height: moderateScale(30), // CONSTANT FIXED HEIGHT (Never shifts when text length varies)
-    marginBottom: verticalScale(8),
+    marginBottom: verticalScale(6),
   },
   heroActionsRow: {
     flexDirection: 'row',
@@ -1899,15 +1932,25 @@ const styles = StyleSheet.create({
   serialCard: {
     width: (windowWidth - scale(32)) / 2,
     borderRadius: scale(14),
-    padding: scale(12),
     borderWidth: 1.2,
-    justifyContent: 'space-between',
-    minHeight: verticalScale(116),
+    overflow: 'hidden',
+    backgroundColor: '#0f172a',
     elevation: 3,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.2,
     shadowRadius: 4,
+  },
+  cardImageBg: {
+    width: '100%',
+  },
+  cardImageBgInner: {
+    borderRadius: scale(13),
+  },
+  cardGradientOverlay: {
+    padding: scale(10),
+    justifyContent: 'space-between',
+    minHeight: verticalScale(124),
   },
   cardTopRow: {
     flexDirection: 'row',
