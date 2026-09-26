@@ -1,0 +1,58 @@
+#EXTM3U
+
+# ==========================================
+# BIGG BOSS TAMIL (YESTERDAY - 14-09-2026)
+# ==========================================
+
+#EXTINF:-1 tvg-name="Bigg Boss Day 09" group-title="Bigg Boss Tamil",Bigg Boss Tamil Season 10 - Day 09 (14-09-2026) [Direct HLS Master Stream]
+#EXTVLCOPT:http-referrer=https://play.playallu.xyz/
+#EXTVLCOPT:http-user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
+https://m3u8-play-151024.playallu.xyz/m3u8/tp1-tsv1/6143ecfbe5b2952eb486ea18/6aa82ffb6e1a2e5c9d5fcbb9/53616c7465645f5f275f2879b66edee0d7060fe84a66d2dde73c06c157cabcf7/1789535666/601f1e14533d2b11a649a833deb88970
+
+#EXTINF:-1 tvg-name="Bigg Boss Day 09 Bunny" group-title="Bigg Boss Tamil",Bigg Boss Tamil Season 10 - Day 09 (14-09-2026) [BunnyCDN Master Playlist]
+#EXTVLCOPT:http-referrer=https://futuregentrends.com/
+#EXTVLCOPT:http-origin=https://futuregentrends.com
+#EXTVLCOPT:http-user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
+https://vz-8cf4325c-bc5.b-cdn.net/334f9192-393e-4416-90d5-fa409ce94a97/playlist.m3u8
+
+# ==========================================
+# VIJAY TV SERIALS (15-09-2026)
+# ==========================================
+
+#EXTINF:-1 tvg-name="Azhagae Azhagu" group-title="Vijay TV",Vijay TV: Azhagae Azhagu (15-09-2026) [Direct HLS]
+#EXTVLCOPT:http-referrer=https://play.playallu.xyz/
+#EXTVLCOPT:http-user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
+https://m3u8-play-151024.playallu.xyz/m3u8/tp1-tsv1/6143ecfbe5b2952eb486ea18/6aa8c12c6e1a2e5c9d5fcc1e/53616c7465645f5fca0dd2e0753b5a54e8621b7e33e7c3336f2405ddc74b48d6/1789537091/22037bc04efb575ef757dccd472c5735
+
+#EXTINF:-1 tvg-name="Siragadikka Aasai" group-title="Vijay TV",Vijay TV: Siragadikka Aasai (15-09-2026) [Direct HLS]
+#EXTVLCOPT:http-referrer=https://play.playallu.xyz/
+#EXTVLCOPT:http-user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
+https://m3u8-play-151024.playallu.xyz/m3u8/tp1-tsv1/6143ecfbe5b2952eb486ea18/6aa8c12b6e1a2e5c9d5fcc06/53616c7465645f5f1cfcbfa03e9a672ef6b4cb6bf80e07768c8d73dbd4947f7f/1789533798/7c165ef2b69150d8d9d339fe46fcbad1
+
+# ==========================================
+# SUN TV SERIALS (15-09-2026)
+# ==========================================
+
+#EXTINF:-1 tvg-name="Annam" group-title="Sun TV",Sun TV: Annam (15-09-2026) [Direct HLS]
+#EXTVLCOPT:http-referrer=https://play.playallu.xyz/
+#EXTVLCOPT:http-user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
+https://m3u8-play-151024.playallu.xyz/m3u8/tp1-tsv1/6143ecfbe5b2952eb486ea18/6aa96afc6e1a2e5c9d5fccb5/53616c7465645f5f03e928e9ab65b57b47bd231309bebaad9f2d10f2694a5adc/1789537095/0f69cb4e8c49b5b3f6f400f803505d3e
+
+#EXTINF:-1 tvg-name="Lakshmi" group-title="Sun TV",Sun TV: Lakshmi (15-09-2026) [Direct HLS]
+#EXTVLCOPT:http-referrer=https://play.playallu.xyz/
+#EXTVLCOPT:http-user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
+https://m3u8-play-151024.playallu.xyz/m3u8/tp1-tsv1/6143ecfbe5b2952eb486ea18/6aa93b4d6e1a2e5c9d5fcc72/53616c7465645f5f2f15e917ed45b5c3380af477d22a08c46229a2b0c4a3d54a/1789537096/3eaf9e2903e3b1fa48bcbf96f504b5d5
+
+# ==========================================
+# ZEE TAMIL SERIALS (15-09-2026)
+# ==========================================
+
+#EXTINF:-1 tvg-name="Karthigai Deepam" group-title="Zee Tamil",Zee Tamil: Karthigai Deepam (15-09-2026) [Direct HLS]
+#EXTVLCOPT:http-referrer=https://play.playallu.xyz/
+#EXTVLCOPT:http-user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
+https://m3u8-play-151024.playallu.xyz/m3u8/tp1-tsv1/6143ecfbe5b2952eb486ea18/6aa96afe6e1a2e5c9d5fccc9/53616c7465645f5f378b9def8e3dbdc4e45b128d9cc3c10516930f6d4ad68b86/1789537154/86a8534a6110de2ede5c2d0687669f62
+
+#EXTINF:-1 tvg-name="Chinna Siru Kiliye" group-title="Zee Tamil",Zee Tamil: Chinna Siru Kiliye (15-09-2026) [Direct HLS]
+#EXTVLCOPT:http-referrer=https://play.playallu.xyz/
+#EXTVLCOPT:http-user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
+https://m3u8-play-151024.playallu.xyz/m3u8/tp1-tsv1/6143ecfbe5b2952eb486ea18/6aa96afd6e1a2e5c9d5fccbd/53616c7465645f5f8aacb954213b6daa417e76639c2f412a1c9fea9625cfc3d2/1789537100/2d8d7468c4c3b7d9c6aa5ceec9790dfe

@@ -7,11 +7,19 @@
  *   node runner.mjs "Deadpool & Wolverine" --year 2024
  *   node runner.mjs "The Boys" --year 2019 --tv --season 4 --episode 1
  *   node runner.mjs "Stree 2" --server 1
+ *   node runner.mjs "Kayal" --server 4 --date "15-09-2026"
+ *   node runner.mjs "Siragadikka Aasai" --server 5 --date "yesterday"
  */
 
 import { ExtensionManager } from './src/utils/ExtensionManager.js';
-import { HDHub4u, FourKHDHub, ClientUtils } from './src/utils/ScraperEngine.js';
-import { Movies4u } from './src/utils/Movies4uProvider.js';
+import { 
+  HDHub4u, 
+  FourKHDHub, 
+  Movies4u, 
+  TamilDhool, 
+  TamilGun, 
+  PROVIDERS 
+} from './src/providers/index.js';
 
 const args = process.argv.slice(2);
 
@@ -22,7 +30,9 @@ function parseArgs() {
     isTV: false,
     season: 1,
     episode: 1,
-    server: 'all'
+    server: 'all',
+    date: null,
+    channel: null
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -37,6 +47,11 @@ function parseArgs() {
       options.episode = parseInt(args[++i], 10);
     } else if (arg === '--server') {
       options.server = args[++i];
+    } else if (arg === '--date' || arg === '-d') {
+      options.date = args[++i];
+      options.isTV = true;
+    } else if (arg === '--channel' || arg === '-c') {
+      options.channel = args[++i];
     } else if (!arg.startsWith('-') && !options.query) {
       options.query = arg;
     }
@@ -77,17 +92,61 @@ async function main() {
     const demoItems = [
       { title: 'Deadpool & Wolverine', year: 2024, isTV: false, season: 1, ep: 1 },
       { title: 'The Boys', year: 2019, isTV: true, season: 4, ep: 1 },
-      { title: 'Stree 2', year: 2024, isTV: false, season: 1, ep: 1 }
+      { title: 'Stree 2', year: 2024, isTV: false, season: 1, ep: 1 },
+      { title: 'Kayal', isTV: true, date: '15-09-2026', server: '4' }
     ];
 
     for (const item of demoItems) {
-      await resolveTitle(item.title, item.year, item.isTV, item.season, item.ep, 'all');
+      if (item.date) {
+        await resolveSerialDate(item.title, item.date, null, item.server);
+      } else {
+        await resolveTitle(item.title, item.year, item.isTV, item.season, item.ep, 'all');
+      }
       console.log('---------------------------------------------------------------\n');
     }
     return;
   }
 
-  await resolveTitle(options.query, options.year, options.isTV, options.season, options.episode, options.server);
+  if (options.date) {
+    await resolveSerialDate(options.query, options.date, options.channel, options.server);
+  } else {
+    await resolveTitle(options.query, options.year, options.isTV, options.season, options.episode, options.server);
+  }
+}
+
+async function resolveSerialDate(title, dateStr, channel, serverChoice) {
+  console.log(`📺 Target Serial: "${title}" [Date: ${dateStr}] ${channel ? `[Channel: ${channel}]` : ''}`);
+
+  const serversToTest = serverChoice === 'all' 
+    ? [4, 5] 
+    : [parseInt(serverChoice, 10)];
+
+  for (const s of serversToTest) {
+    const sName = s === 4 ? 'Server 4 (TamilDhool)' : 'Server 5 (TamilGun)';
+    console.log(`\n  📡 Probing ${sName} for serial episode...`);
+    const startTime = Date.now();
+
+    try {
+      const activeProvider = s === 5 ? 'tamilgun' : 'tamildhool';
+      const stream = await ExtensionManager.findEpisodeByDate(title, dateStr, channel, activeProvider);
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+
+      if (stream && stream.streamUrl) {
+        console.log(`  ✅ [${elapsed}s] Resolved Episode Direct Stream:`);
+        console.log(`     - Match:   ${stream.matchedTitle || title}`);
+        console.log(`     - Quality: ${stream.quality || '720p'}`);
+        console.log(`     - Server:  ${stream.server || sName}`);
+        console.log(`     - Stream:  ${stream.streamUrl}`);
+
+        const probe = await probeUrl(stream.streamUrl, stream.headers);
+        console.log(`     - Probe:   ${probe.ok ? `HTTP ${probe.status} (PLAYABLE)` : `Probe status: ${probe.status || probe.error}`}`);
+      } else {
+        console.log(`  🔒 [${elapsed}s] Serial episode unavailable on ${sName}.`);
+      }
+    } catch (err) {
+      console.log(`  🔒 [${((Date.now() - startTime) / 1000).toFixed(2)}s] ${err.message}`);
+    }
+  }
 }
 
 async function resolveTitle(title, year, isTV, season, episode, serverChoice) {
@@ -103,11 +162,19 @@ async function resolveTitle(title, year, isTV, season, episode, serverChoice) {
   console.log(`🎬 Target: "${title}" [Year: ${year || 'N/A'}] [Type: ${isTV ? `TV Series S${season}E${episode}` : 'Movie'}]`);
 
   const serversToTest = serverChoice === 'all' 
-    ? [1, 2, 3] 
+    ? [1, 2, 3, 4, 5] 
     : [parseInt(serverChoice, 10)];
 
+  const serverNames = {
+    1: 'Server 1 (HDHub4u)',
+    2: 'Server 2 (4KHDHub)',
+    3: 'Server 3 (Movies4u)',
+    4: 'Server 4 (TamilDhool)',
+    5: 'Server 5 (TamilGun)'
+  };
+
   for (const s of serversToTest) {
-    const sName = s === 1 ? 'Server 1 (HDHub4u)' : s === 2 ? 'Server 2 (4KHDHub)' : 'Server 3 (Movies4u)';
+    const sName = serverNames[s] || `Server ${s}`;
     console.log(`\n  📡 Probing ${sName}...`);
     const startTime = Date.now();
 
@@ -123,7 +190,7 @@ async function resolveTitle(title, year, isTV, season, episode, serverChoice) {
 
       if (stream && stream.streamUrl) {
         console.log(`  ✅ [${elapsed}s] Resolved Direct Stream:`);
-        console.log(`     - Quality: ${stream.quality || '4K'}`);
+        console.log(`     - Quality: ${stream.quality || '1080p'}`);
         console.log(`     - Server:  ${stream.server || 'Direct'}`);
         console.log(`     - Stream:  ${stream.streamUrl}`);
         if (stream.qualities && Object.keys(stream.qualities).length > 0) {

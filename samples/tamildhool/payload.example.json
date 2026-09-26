@@ -1,0 +1,33 @@
+{
+  "pageUrl": "https://www.tamildhool.tech/sun-tv/sun-tv-serial/kayal/kayal-08-07-2026-sun-tv-serial/",
+  "kind": "episode",
+  "name": "kayal",
+  "channel": "sun-tv",
+  "date": "08-07-2026",
+  "videoId": "319e7980-1458-4f75-94dd-be8c07343e26",
+  "thumbnail": "https://vz-8cf4325c-bc5.b-cdn.net/319e7980-1458-4f75-94dd-be8c07343e26/thumbnail.jpg",
+  "streams": [
+    {
+      "url": "https://vz-8cf4325c-bc5.b-cdn.net/319e7980-1458-4f75-94dd-be8c07343e26/playlist.m3u8",
+      "height": 720,
+      "quality": "720p",
+      "format": "m3u8",
+      "server": "Bunny Stream HLS (Master)",
+      "headers": {
+        "Referer": "https://futuregentrends.com/",
+        "Origin": "https://futuregentrends.com"
+      }
+    },
+    {
+      "url": "https://vz-8cf4325c-bc5.b-cdn.net/319e7980-1458-4f75-94dd-be8c07343e26/480p/video.m3u8",
+      "height": 480,
+      "quality": "480p",
+      "format": "m3u8",
+      "server": "Bunny Stream (480p)",
+      "headers": {
+        "Referer": "https://futuregentrends.com/",
+        "Origin": "https://futuregentrends.com"
+      }
+    }
+  ]
+}

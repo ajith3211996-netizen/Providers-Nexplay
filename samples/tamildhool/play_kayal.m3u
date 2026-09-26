@@ -1,0 +1,13 @@
+#EXTM3U
+
+#EXTINF:-1 tvg-name="Kayal 15-09-2026 Sun Tv Serial" group-title="Sun TV",Kayal 15-09-2026 Sun Tv Serial [Direct HLS]
+#EXTVLCOPT:http-referrer=https://play.playallu.xyz/
+#EXTVLCOPT:http-origin=https://play.playallu.xyz
+#EXTVLCOPT:http-user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
+https://m3u8-play-151024.playallu.xyz/m3u8/tp1-tsv1/6143ecfbe5b2952eb486ea18/69df4d93a356bbc7a56d347b/53616c7465645f5f427199abc74a4fe1f95ebacdfb59a7ae4a518bc997a798ff/1789538513/a1d22b2b3f40b58ab7516b8c54e416cc
+
+#EXTINF:-1 tvg-name="Kayal BunnyCDN" group-title="Sun TV",Kayal 15-09-2026 Sun Tv Serial [BunnyCDN Master]
+#EXTVLCOPT:http-referrer=https://futuregentrends.com/
+#EXTVLCOPT:http-origin=https://futuregentrends.com
+#EXTVLCOPT:http-user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
+https://vz-8cf4325c-bc5.b-cdn.net/319e7980-1458-4f75-94dd-be8c07343e26/playlist.m3u8

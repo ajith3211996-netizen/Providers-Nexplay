@@ -1,0 +1,16 @@
+#EXTM3U
+
+#EXTINF:-1,TamilGun / Arivumani: Bigg Boss Tamil Day 03 (09-09-2026) [Direct HLS Master Stream]
+#EXTVLCOPT:http-referrer=https://play.playallu.xyz/
+#EXTVLCOPT:http-user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
+https://m3u8-play-151024.playallu.xyz/m3u8/tp1-tsv1/6143ecfbe5b2952eb486ea18/6aa199b26e1a2e5c9d5fc307/53616c7465645f5f54efa63c23879f55206c1886ba1f39be511b144ca0955536/1789074440/993879e8bc8c5fbc40a61182d9fb833c
+
+#EXTINF:-1,TamilDhool: Bigg Boss Tamil Season 10 - 09-09-2026 [720p HD Direct Stream]
+#EXTVLCOPT:http-referrer=https://player.vibrantpulselab.com/
+#EXTVLCOPT:http-user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
+https://media.vibrantpulselab.com/177e0f80b20fb266/720p/index.m3u8
+
+#EXTINF:-1,TamilDhool: Bigg Boss Tamil Season 10 - 09-09-2026 [Adaptive Master Playlist]
+#EXTVLCOPT:http-referrer=https://player.vibrantpulselab.com/
+#EXTVLCOPT:http-user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
+https://media.vibrantpulselab.com/177e0f80b20fb266/playlist.m3u8
